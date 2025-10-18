@@ -1,0 +1,28 @@
+{
+    "name":  "sal-upp",
+    "version":  "1.0.0",
+    "description":  "Monorepo: - **backend/** Node.js + Express + MySQL (JWT, Labs, QR) - **frontend-web/** React + Vite (Login, Dashboard, Generar QR)",
+    "main":  "index.js",
+    "directories":  {
+                        "doc":  "docs"
+                    },
+    "scripts":  {
+                    "test":  "echo \"Error: no test specified\" \u0026\u0026 exit 1"
+                },
+    "repository":  {
+                       "type":  "git",
+                       "url":  "git+https://github.com/geovanni143/sal-upp.git"
+                   },
+    "keywords":  [
+
+                 ],
+    "author":  "",
+    "license":  "ISC",
+    "bugs":  {
+                 "url":  "https://github.com/geovanni143/sal-upp/issues"
+             },
+    "homepage":  "https://github.com/geovanni143/sal-upp#readme",
+    "devDependencies":  {
+                            "concurrently":  "^9.2.1"
+                        }
+}
