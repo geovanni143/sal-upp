@@ -1,13 +1,26 @@
-﻿import { Outlet, Link, useNavigate } from "react-router-dom";
+﻿import { Outlet, Link, useNavigate, useLocation } from "react-router-dom";
+import "./App.css";
 
 export default function App(){
   const nav = useNavigate();
-  const logout = ()=>{ localStorage.removeItem("token"); nav("/login"); }
+  const { pathname } = useLocation();
+
+  const AUTH_ROUTES = ["/login", "/login-admin", "/registro", "/recuperar"];
+  const isAuth = AUTH_ROUTES.includes(pathname);
+
+  const logout = ()=>{
+    localStorage.removeItem("token");
+    sessionStorage.removeItem("token");
+    nav("/login");
+  };
+
+  if (isAuth) return <Outlet/>; // las pantallas de login ocupan todo
+
   return (
-    <div style={{maxWidth:960, margin:"20px auto", padding:"0 16px"}}>
-      <header style={{display:"flex", gap:16, alignItems:"center", justifyContent:"space-between"}}>
+    <div className="container">
+      <header className="app-header">
         <h1>SAL-UPP</h1>
-        <nav style={{display:"flex", gap:12}}>
+        <nav className="app-nav">
           <Link to="/">Dashboard</Link>
           <Link to="/login">Login</Link>
           <button onClick={logout}>Salir</button>
@@ -17,4 +30,3 @@ export default function App(){
     </div>
   );
 }
-
