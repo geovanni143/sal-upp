@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../services/api";
+import { saveSession, getToken, getRole } from "../state/auth";
+import { redirectByRole } from "../utils/redirectByRole";
 import "./login.css";
 
 export default function LoginDocente(){
@@ -12,31 +14,43 @@ export default function LoginDocente(){
   const [err,setErr] = useState("");
 
   useEffect(()=>{
-    const t = localStorage.getItem("token") || sessionStorage.getItem("token");
-    if(t) nav("/");
+    const t = getToken();
+    const r = getRole();
+    if (t && r) nav(redirectByRole(r), { replace:true });
   },[nav]);
 
-  function saveToken(token){
-    if(remember){ localStorage.setItem("token", token); sessionStorage.removeItem("token"); }
-    else{ sessionStorage.setItem("token", token); localStorage.removeItem("token"); }
+  function extractRole(token, fallbackRole){
+    // Preferimos data.role del backend; si no viene, decodificamos el JWT
+    if (fallbackRole) return fallbackRole;
+    try{
+      const payload = JSON.parse(atob(token.split(".")[1] || ""));
+      return payload?.role || payload?.rol || "";
+    }catch{ return ""; }
   }
 
   async function submit(e){
     e.preventDefault(); setErr(""); setL(true);
     try{
       const { data } = await api.post("/auth/login", { username, password });
-      // VALIDAMOS ROL ANTES DE GUARDAR TOKEN
-      const payload = JSON.parse(atob(data.token.split(".")[1]));
-      const role = payload?.role || payload?.rol || "";
-      if(role !== "docente"){
-        setErr("Esta pantalla es solo para DOCENTE. Usa 'Iniciar como admi' si eres administrador.");
-        return; // NO guardar token
+      if (!data?.token) throw new Error("Respuesta inválida del servidor");
+      const role = extractRole(data.token, data.role);
+
+      // Esta pantalla es exclusiva para DOCENTE
+      if (role !== "docente"){
+        setErr("Esta pantalla es solo para DOCENTE. Si eres administrador entra por 'Iniciar como admi'.");
+        return;
       }
-      saveToken(data.token);
-      nav("/docente"); // menú docente (HU-21)
+
+      saveSession({ token: data.token, role }, { remember });
+      nav("/docente", { replace:true });
     }catch(ex){
-      setErr(ex?.response?.data?.error || "Error al iniciar sesión");
-    }finally{ setL(false); }
+      const msg = ex?.response?.status === 429
+        ? (ex?.response?.data?.msg || "Cuenta bloqueada temporalmente. Intenta más tarde.")
+        : (ex?.response?.data?.msg || ex?.response?.data?.error || ex?.message || "Error al iniciar sesión");
+      setErr(msg);
+    }finally{
+      setL(false);
+    }
   }
 
   return (
@@ -47,11 +61,11 @@ export default function LoginDocente(){
         <form className="form" onSubmit={submit}>
           <label className="label" htmlFor="user">Usuario</label>
           <input id="user" className="input" placeholder="Ingresa tu usuario"
-                 value={username} onChange={e=>setU(e.target.value)} autoComplete="username"/>
+                 value={username} onChange={e=>setU(e.target.value)} autoComplete="username" required />
 
           <label className="label" htmlFor="pass">Contraseña</label>
           <input id="pass" className="input" type="password" placeholder="••••••••"
-                 value={password} onChange={e=>setP(e.target.value)} autoComplete="current-password"/>
+                 value={password} onChange={e=>setP(e.target.value)} autoComplete="current-password" required />
 
           <div className="row">
             <label className="chk">
@@ -65,7 +79,7 @@ export default function LoginDocente(){
             {loading ? "Entrando..." : "Entrar"}
           </button>
 
-          {err && <small className="error-msg">{err}</small>}
+          {err && <small className="error-msg" role="alert">{err}</small>}
 
           <hr className="hr" />
           <div className="secondary-links">
