@@ -5,50 +5,64 @@ import { saveSession, getToken, getRole } from "../state/auth";
 import { redirectByRole } from "../utils/redirectByRole";
 import "./login.css";
 
-export default function LoginDocente(){
+export default function LoginDocente() {
   const nav = useNavigate();
-  const [username,setU] = useState("");
-  const [password,setP] = useState("");
-  const [remember,setR] = useState(true);
-  const [loading,setL] = useState(false);
-  const [err,setErr] = useState("");
+  const [username, setU] = useState("");
+  const [password, setP] = useState("");
+  const [remember, setR] = useState(true);
+  const [loading, setL] = useState(false);
+  const [err, setErr] = useState("");
 
-  useEffect(()=>{
+  // ✅ Corregido: solo se ejecuta una vez (evita bucle infinito)
+  useEffect(() => {
     const t = getToken();
     const r = getRole();
-    if (t && r) nav(redirectByRole(r), { replace:true });
-  },[nav]);
+    if (t && r) {
+      const path = redirectByRole(r);
+      if (window.location.pathname !== path) {
+        nav(path, { replace: true });
+      }
+    }
+  }, []); // 👈 sin dependencias
 
-  function extractRole(token, fallbackRole){
-    // Preferimos data.role del backend; si no viene, decodificamos el JWT
+  function extractRole(token, fallbackRole) {
     if (fallbackRole) return fallbackRole;
-    try{
+    try {
       const payload = JSON.parse(atob(token.split(".")[1] || ""));
       return payload?.role || payload?.rol || "";
-    }catch{ return ""; }
+    } catch {
+      return "";
+    }
   }
 
-  async function submit(e){
-    e.preventDefault(); setErr(""); setL(true);
-    try{
+  async function submit(e) {
+    e.preventDefault();
+    setErr("");
+    setL(true);
+    try {
       const { data } = await api.post("/auth/login", { username, password });
       if (!data?.token) throw new Error("Respuesta inválida del servidor");
+
       const role = extractRole(data.token, data.role);
 
-      // Esta pantalla es exclusiva para DOCENTE
-      if (role !== "docente"){
+      // Solo docentes pueden iniciar aquí
+      if (role !== "docente") {
         setErr("Esta pantalla es solo para DOCENTE. Si eres administrador entra por 'Iniciar como admi'.");
         return;
       }
 
       saveSession({ token: data.token, role }, { remember });
-      nav("/docente", { replace:true });
-    }catch(ex){
-      const msg = ex?.response?.status === 429
-        ? (ex?.response?.data?.msg || "Cuenta bloqueada temporalmente. Intenta más tarde.")
-        : (ex?.response?.data?.msg || ex?.response?.data?.error || ex?.message || "Error al iniciar sesión");
+      nav("/docente", { replace: true });
+    } catch (ex) {
+      const msg =
+        ex?.response?.status === 429
+          ? ex?.response?.data?.msg || "Cuenta bloqueada temporalmente. Intenta más tarde."
+          : ex?.response?.data?.msg ||
+            ex?.response?.data?.error ||
+            ex?.message ||
+            "Error al iniciar sesión";
       setErr(msg);
-    }finally{
+    } finally {
       setL(false);
     }
   }
@@ -60,19 +74,40 @@ export default function LoginDocente(){
 
         <form className="form" onSubmit={submit}>
           <label className="label" htmlFor="user">Usuario</label>
-          <input id="user" className="input" placeholder="Ingresa tu usuario"
-                 value={username} onChange={e=>setU(e.target.value)} autoComplete="username" required />
+          <input
+            id="user"
+            className="input"
+            placeholder="Ingresa tu usuario"
+            value={username}
+            onChange={(e) => setU(e.target.value)}
+            autoComplete="username"
+            required
+          />
 
           <label className="label" htmlFor="pass">Contraseña</label>
-          <input id="pass" className="input" type="password" placeholder="••••••••"
-                 value={password} onChange={e=>setP(e.target.value)} autoComplete="current-password" required />
+          <input
+            id="pass"
+            className="input"
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setP(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
 
           <div className="row">
             <label className="chk">
-              <input type="checkbox" checked={remember} onChange={e=>setR(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => setR(e.target.checked)}
+              />
               Recuérdame
             </label>
-            <Link className="link" to="/recuperar">¿Olvidaste tu contraseña?</Link>
+            <Link className="link" to="/recuperar">
+              ¿Olvidaste tu contraseña?
+            </Link>
           </div>
 
           <button className="btn-primary" disabled={loading}>
@@ -82,9 +117,19 @@ export default function LoginDocente(){
           {err && <small className="error-msg" role="alert">{err}</small>}
 
           <hr className="hr" />
+
           <div className="secondary-links">
             <Link className="link" to="/login-admin">Iniciar como admi</Link>
             <Link className="link" to="/registro">¿No tienes acceso? solicitar registro</Link>
+          </div>
+
+          {/* 🔹 Botón adicional con tu CSS */}
+          <div className="reportar-btn-container" style={{ marginTop: "1.2rem", textAlign: "center" }}>
+            <Link to="/reportar-incidencia">
+              <button type="button" className="btn-secondary">
+                Reportar Incidencia
+              </button>
+            </Link>
           </div>
         </form>
       </div>
