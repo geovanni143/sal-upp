@@ -54,3 +54,24 @@
 .quick button{ background:transparent; border:none; color:#5E6AD2; cursor:pointer; }
 
 .error-msg{ color:crimson; margin-top:8px; }
+
+
+.reportar-btn-container{
+  margin-top: 1.2rem;
+  text-align: center;
+}
+
+.btn-secondary.as-link{
+  display: inline-block;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid #E5E7EB;
+  background: #fff;
+  text-decoration: none;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.btn-secondary.as-link:hover{
+  background: #F7F7FA;
+}

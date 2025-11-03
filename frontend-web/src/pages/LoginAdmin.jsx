@@ -5,49 +5,58 @@ import { saveSession, getToken, getRole } from "../state/auth";
 import { redirectByRole } from "../utils/redirectByRole";
 import "./login.css";
 
-export default function LoginAdmin(){
+export default function LoginAdmin() {
   const nav = useNavigate();
-  const [username,setU] = useState("admin");     // demo
-  const [password,setP] = useState("admin123");  // demo
-  const [remember,setR] = useState(true);
-  const [loading,setL] = useState(false);
-  const [err,setErr] = useState("");
+  const [username, setU] = useState("admin");
+  const [password, setP] = useState("admin123");
+  const [remember, setR] = useState(true);
+  const [loading, setL] = useState(false);
+  const [err, setErr] = useState("");
 
-  useEffect(()=>{
+  useEffect(() => {
     const t = getToken();
     const r = getRole();
-    if (t && r) nav(redirectByRole(r), { replace:true });
-  },[nav]);
+    if (t && r) nav(redirectByRole(r), { replace: true });
+  }, [nav]);
 
-  function extractRole(token, fallbackRole){
+  function extractRole(token, fallbackRole) {
     if (fallbackRole) return fallbackRole;
-    try{
+    try {
       const payload = JSON.parse(atob(token.split(".")[1] || ""));
       return payload?.role || payload?.rol || "";
-    }catch{ return ""; }
+    } catch {
+      return "";
+    }
   }
 
-  async function submit(e){
-    e.preventDefault(); setErr(""); setL(true);
-    try{
-      const { data } = await api.post("/auth/login", { username, password });
+  async function submit(e) {
+    e.preventDefault();
+    setErr("");
+    setL(true);
+    try {
+      const { data } = await api.post("/login", { username, password });
       if (!data?.token) throw new Error("Respuesta inválida del servidor");
       const role = extractRole(data.token, data.role);
 
-      // Esta pantalla es exclusiva para ADMIN (superadmin/admin_lab)
-      if (!["superadmin","admin_lab"].includes(role)){
-        setErr("Pantalla solo para ADMINISTRACIÓN. Si eres docente, usa el login de docente.");
+      // Solo para roles administrativos
+      if (!["superadmin", "admin_lab"].includes(role)) {
+        setErr("Pantalla exclusiva para ADMINISTRACIÓN.");
         return;
       }
 
       saveSession({ token: data.token, role }, { remember });
-      nav("/admin", { replace:true });
-    }catch(ex){
-      const msg = ex?.response?.status === 429
-        ? (ex?.response?.data?.msg || "Cuenta bloqueada temporalmente. Intenta más tarde.")
-        : (ex?.response?.data?.msg || ex?.response?.data?.error || ex?.message || "Error al iniciar sesión");
+      nav("/admin", { replace: true });
+    } catch (ex) {
+      const msg =
+        ex?.response?.status === 429
+          ? ex?.response?.data?.msg ||
+            "Cuenta bloqueada temporalmente. Intenta más tarde."
+          : ex?.response?.data?.msg ||
+            ex?.response?.data?.error ||
+            ex?.message ||
+            "Error al iniciar sesión";
       setErr(msg);
-    }finally{
+    } finally {
       setL(false);
     }
   }
@@ -58,17 +67,18 @@ export default function LoginAdmin(){
         <h1 id="title" className="brand">SAL-UPP</h1>
 
         <form className="form" onSubmit={submit}>
-          <label className="label" htmlFor="user">Usuario Admi</label>
-          <input id="user" className="input" placeholder="usuario admin"
-                 value={username} onChange={e=>setU(e.target.value)} autoComplete="username" required />
+          <label className="label" htmlFor="user">Usuario Admin</label>
+          <input id="user" className="input" value={username}
+                 onChange={(e) => setU(e.target.value)} required />
 
           <label className="label" htmlFor="pass">Contraseña</label>
-          <input id="pass" className="input" type="password" placeholder="••••••••"
-                 value={password} onChange={e=>setP(e.target.value)} autoComplete="current-password" required />
+          <input id="pass" className="input" type="password" value={password}
+                 onChange={(e) => setP(e.target.value)} required />
 
           <div className="row">
             <label className="chk">
-              <input type="checkbox" checked={remember} onChange={e=>setR(e.target.checked)} />
+              <input type="checkbox" checked={remember}
+                     onChange={(e) => setR(e.target.checked)} />
               Recuérdame
             </label>
             <Link className="link" to="/recuperar">¿Olvidaste tu contraseña?</Link>
@@ -78,7 +88,7 @@ export default function LoginAdmin(){
             {loading ? "Entrando..." : "Entrar"}
           </button>
 
-          {err && <small className="error-msg" role="alert">{err}</small>}
+          {err && <small className="error-msg">{err}</small>}
 
           <hr className="hr" />
           <div className="secondary-links">

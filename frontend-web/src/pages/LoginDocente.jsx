@@ -13,7 +13,7 @@ export default function LoginDocente() {
   const [loading, setL] = useState(false);
   const [err, setErr] = useState("");
 
-  // ✅ Corregido: solo se ejecuta una vez (evita bucle infinito)
+  // ✅ Solo se ejecuta una vez; previene redirecciones en bucle
   useEffect(() => {
     const t = getToken();
     const r = getRole();
@@ -23,7 +23,8 @@ export default function LoginDocente() {
         nav(path, { replace: true });
       }
     }
-  }, []); // 👈 sin dependencias
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function extractRole(token, fallbackRole) {
     if (fallbackRole) return fallbackRole;
@@ -40,12 +41,13 @@ export default function LoginDocente() {
     setErr("");
     setL(true);
     try {
-      const { data } = await api.post("/auth/login", { username, password });
+      // ✅ Endpoint correcto (sin /auth) y usando el cliente con baseURL "/api"
+      const { data } = await api.post("/login", { username, password });
       if (!data?.token) throw new Error("Respuesta inválida del servidor");
 
       const role = extractRole(data.token, data.role);
 
-      // Solo docentes pueden iniciar aquí
+      // Esta pantalla es exclusiva para DOCENTE
       if (role !== "docente") {
         setErr("Esta pantalla es solo para DOCENTE. Si eres administrador entra por 'Iniciar como admi'.");
         return;
@@ -105,9 +107,7 @@ export default function LoginDocente() {
               />
               Recuérdame
             </label>
-            <Link className="link" to="/recuperar">
-              ¿Olvidaste tu contraseña?
-            </Link>
+            <Link className="link" to="/recuperar">¿Olvidaste tu contraseña?</Link>
           </div>
 
           <button className="btn-primary" disabled={loading}>
@@ -120,15 +120,13 @@ export default function LoginDocente() {
 
           <div className="secondary-links">
             <Link className="link" to="/login-admin">Iniciar como admi</Link>
-            <Link className="link" to="/registro">¿No tienes acceso? solicitar registro</Link>
+            <Link className="link" to="/registro">¿No tienes acceso? Solicitar registro</Link>
           </div>
 
-          {/* 🔹 Botón adicional con tu CSS */}
-          <div className="reportar-btn-container" style={{ marginTop: "1.2rem", textAlign: "center" }}>
-            <Link to="/reportar-incidencia">
-              <button type="button" className="btn-secondary">
-                Reportar Incidencia
-              </button>
+          {/* Botón adicional alineado con tu estilo */}
+          <div className="reportar-btn-container">
+            <Link to="/reportar-incidencia" className="btn-secondary as-link">
+              Reportar Incidencia
             </Link>
           </div>
         </form>
