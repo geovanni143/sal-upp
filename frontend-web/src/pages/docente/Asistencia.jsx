@@ -1,23 +1,90 @@
 import { useEffect, useRef, useState } from "react";
+import jsQR from "jsqr";
 import "./docente.css";
 
 export default function Asistencia() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const overlayRef = useRef(null);
   const firmaRef = useRef(null);
   const [snap, setSnap] = useState(null);
   const [form, setForm] = useState({ docente_id: "", lab_id: "", codigo: "" });
   const [msg, setMsg] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [found, setFound] = useState(false);
 
+  // Inicializa cámara
   useEffect(() => {
     navigator.mediaDevices
-      .getUserMedia({ video: true })
+      .getUserMedia({ video: { facingMode: "environment" } })
       .then((stream) => {
         videoRef.current.srcObject = stream;
         videoRef.current.play();
       })
       .catch(() => setMsg("No se pudo acceder a la cámara"));
   }, []);
+
+  // Escanear QR en tiempo real con animación
+  useEffect(() => {
+    if (!scanning) return;
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const overlay = overlayRef.current;
+    const octx = overlay.getContext("2d");
+
+    const interval = setInterval(() => {
+      const video = videoRef.current;
+      if (!video || video.readyState !== 4) return;
+
+      // Dibuja el frame actual
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // Detecta QR
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+      // Limpia overlay
+      octx.clearRect(0, 0, overlay.width, overlay.height);
+
+      if (code) {
+        // Convierte coordenadas a proporción del canvas visible
+        const scaleX = overlay.width / canvas.width;
+        const scaleY = overlay.height / canvas.height;
+        const drawLine = (begin, end) => {
+          octx.moveTo(begin.x * scaleX, begin.y * scaleY);
+          octx.lineTo(end.x * scaleX, end.y * scaleY);
+        };
+
+        octx.beginPath();
+        octx.lineWidth = 4;
+        octx.strokeStyle = "#00ff00";
+        drawLine(code.location.topLeftCorner, code.location.topRightCorner);
+        drawLine(code.location.topRightCorner, code.location.bottomRightCorner);
+        drawLine(code.location.bottomRightCorner, code.location.bottomLeftCorner);
+        drawLine(code.location.bottomLeftCorner, code.location.topLeftCorner);
+        octx.stroke();
+
+        // Muestra mensaje visual
+        setForm((prev) => ({ ...prev, codigo: code.data }));
+        setMsg(`Código detectado: ${code.data}`);
+        setFound(true);
+        setScanning(false);
+
+        // Limpia animación luego de 2.5 segundos
+        setTimeout(() => {
+          setFound(false);
+          octx.clearRect(0, 0, overlay.width, overlay.height);
+        }, 2500);
+
+        clearInterval(interval);
+      }
+    }, 400);
+
+    return () => clearInterval(interval);
+  }, [scanning]);
 
   const tomarFoto = () => {
     const v = videoRef.current,
@@ -75,7 +142,6 @@ export default function Asistencia() {
       fd.append("foto", toFile(snap, "foto.jpg"));
       fd.append("firma", toFile(firmaData, "firma.png"));
 
-      // Ejemplo de petición (ajusta tu función real de subida)
       const r = await fetch("/api/asistencia/registrar", {
         method: "POST",
         body: fd,
@@ -102,6 +168,7 @@ export default function Asistencia() {
             style={{
               color: msg.includes("OK") ? "#0a7" : "crimson",
               fontWeight: 600,
+              marginTop: 4,
             }}
           >
             {msg}
@@ -109,19 +176,35 @@ export default function Asistencia() {
         )}
 
         <div className="camera-section">
-          <video ref={videoRef} className="camera-view" />
+          <div className="camera-wrapper">
+            <video ref={videoRef} className="camera-view" />
+            <canvas ref={overlayRef} className="camera-overlay" />
+            {found && <div className="qr-found">✅ Código Detectado</div>}
+          </div>
+
           <div className="row gap mt">
-            <button className="btn-primary small" onClick={tomarFoto}>
+            <button
+              className="btn-primary small"
+              onClick={() => setScanning((prev) => !prev)}
+            >
+              {scanning ? "Escaneando..." : "Escanear QR"}
+            </button>
+            <button className="btn-secondary-ghost small" onClick={tomarFoto}>
               Tomar Foto
             </button>
-            {snap && (
-              <img
-                src={snap}
-                alt="preview"
-                style={{ width: 120, borderRadius: "6px" }}
-              />
-            )}
           </div>
+
+          {snap && (
+            <img
+              src={snap}
+              alt="preview"
+              style={{
+                width: 120,
+                borderRadius: "6px",
+                marginTop: "10px",
+              }}
+            />
+          )}
           <canvas ref={canvasRef} hidden />
         </div>
 
@@ -147,7 +230,9 @@ export default function Asistencia() {
           <input
             placeholder="ID Docente"
             value={form.docente_id}
-            onChange={(e) => setForm({ ...form, docente_id: e.target.value })}
+            onChange={(e) =>
+              setForm({ ...form, docente_id: e.target.value })
+            }
           />
           <input
             placeholder="ID Laboratorio"
