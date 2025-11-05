@@ -1,0 +1,55 @@
+import { Router } from 'express';
+import { pool } from '../db/mysql.js';
+import { emailUPP } from '../middlewares/validate.js';
+import log from '../middlewares/bitacora.js';
+import crypto from 'crypto';
+
+const r = Router();
+
+r.get('/', async (_req,res)=>{
+  const [rows] = await pool.query('SELECT id,nombre,email,rol,activo FROM users ORDER BY nombre');
+  res.json(rows);
+});
+
+r.post('/', emailUPP, log('users'), async (req,res)=>{
+  const { nombre, email, rol='docente', password=null, activo=1 } = req.body;
+  const pass_hash = password ? crypto.createHash('sha256').update(password).digest('hex') : null;
+  try{
+    const [dup] = await pool.query('SELECT id FROM users WHERE email=?',[email]);
+    if(dup.length) return res.status(409).json({error:'El email ya existe'});
+    const [rs] = await pool.execute(
+      'INSERT INTO users(nombre,email,rol,pass_hash,activo) VALUES(?,?,?,?,?)',
+      [nombre,email,rol,pass_hash,activo]
+    );
+    res.locals.entityId = rs.insertId;
+    res.status(201).json({id:rs.insertId});
+  }catch(e){ res.status(500).json({error:'Error al crear'}); }
+});
+
+r.put('/:id', emailUPP, log('users'), async (req,res)=>{
+  const { id } = req.params;
+  const { nombre, email, rol='docente', activo=1, password } = req.body;
+  const pass_hash = password ? crypto.createHash('sha256').update(password).digest('hex') : null;
+  const [dup] = await pool.query('SELECT id FROM users WHERE email=? AND id<>?',[email,id]);
+  if(dup.length) return res.status(409).json({error:'El email ya existe'});
+
+  const sql = pass_hash
+    ? 'UPDATE users SET nombre=?, email=?, rol=?, activo=?, pass_hash=? WHERE id=?'
+    : 'UPDATE users SET nombre=?, email=?, rol=?, activo=? WHERE id=?';
+  const args = pass_hash
+    ? [nombre,email,rol,activo,pass_hash,id]
+    : [nombre,email,rol,activo,id];
+  await pool.execute(sql,args);
+
+  res.locals.entityId = id;
+  res.json({ok:true});
+});
+
+r.delete('/:id', log('users'), async (req,res)=>{
+  const { id } = req.params;
+  await pool.execute('UPDATE users SET activo=0 WHERE id=?',[id]);
+  res.locals.entityId = id;
+  res.json({ok:true});
+});
+
+export default r;

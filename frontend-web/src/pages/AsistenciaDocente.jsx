@@ -1,92 +1,104 @@
-import { useEffect, useRef, useState } from "react";
-import api from "../services/api";
-import { compressImage } from "../utils/compressImage";
-import SignaturePad from "signature_pad";
+import { useEffect, useRef, useState } from 'react';
 
 export default function AsistenciaDocente(){
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const sigRef = useRef(null);
-  const [sigPad,setSigPad]=useState(null);
-  const [fotoFile,setFotoFile]=useState(null);
-  const [docente_id,setDocenteId]=useState("");    // en real, tomar de token
-  const [laboratorio_id,setLabId]=useState("");
-  const [origen,setOrigen]=useState("codigo");      // 'qr' o 'codigo'
-  const [msg,setMsg]=useState("");
+  const firmaRef = useRef(null);
+  const [snap,setSnap]=useState(null);
+  const [form,setForm]=useState({docente_id:'', lab_id:'', codigo:''});
+  const [msg,setMsg]=useState('');
 
   useEffect(()=>{
-    // Cámara en vivo
-    (async ()=>{
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio:false });
+    navigator.mediaDevices.getUserMedia({video:true}).then(stream=>{
       videoRef.current.srcObject = stream;
-      await videoRef.current.play();
-      const pad = new SignaturePad(sigRef.current, { minWidth:1, maxWidth:2 });
-      setSigPad(pad);
-    })();
-    return ()=>{ videoRef.current?.srcObject?.getTracks()?.forEach(t=>t.stop()); };
+      videoRef.current.play();
+    }).catch(()=> setMsg('No se pudo acceder a la cámara'));
   },[]);
 
-  function tomarFoto(){
+  const tomarFoto=()=>{
     const v = videoRef.current, c = canvasRef.current;
-    c.width = v.videoWidth; c.height = v.videoHeight;
-    const ctx = c.getContext("2d", { alpha:false });
-    ctx.drawImage(v,0,0,c.width,c.height);
-    c.toBlob(async (blob)=>{
-      const file = new File([blob], "foto.jpg", { type:"image/jpeg" });
-      const small = await compressImage(file, { maxKB: 400, maxW: 1280, maxH: 1280 });
-      setFotoFile(small);
-    }, "image/jpeg", 0.92);
-  }
+    const w = 640, h = Math.round((v.videoHeight/v.videoWidth)*w);
+    c.width=w; c.height=h;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(v,0,0,w,h);
+    // compresión (calidad 0.72)
+    const dataUrl = c.toDataURL('image/jpeg', 0.72);
+    setSnap(dataUrl);
+  };
 
-  async function enviar(){
+  const limpiarFirma=()=> {
+    const c=firmaRef.current; const ctx=c.getContext('2d');
+    ctx.clearRect(0,0,c.width,c.height);
+  };
+  const dibujarFirma=(e)=>{
+    if (e.buttons!==1) return;
+    const c=firmaRef.current; const ctx=c.getContext('2d');
+    const rect=c.getBoundingClientRect();
+    const x=e.clientX-rect.left, y=e.clientY-rect.top;
+    ctx.lineWidth=2; ctx.lineCap='round'; ctx.strokeStyle='#111';
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+0.1,y+0.1); ctx.stroke();
+  };
+
+  const enviar=async()=>{
     try{
-      if(!docente_id || !laboratorio_id) return setMsg("Faltan datos (docente/lab)");
-      if(!fotoFile) return setMsg("Toma la foto en vivo");
-      if(sigPad.isEmpty()) return setMsg("Falta la firma");
-      const sigBlob = await (await fetch(sigRef.current.toDataURL("image/jpeg",0.9))).blob();
-      const sigFile = new File([sigBlob], "firma.jpg", { type:"image/jpeg" });
+      setMsg('');
+      if(!snap) return setMsg('Toma la foto en vivo');
+      const firmaData = firmaRef.current.toDataURL('image/png');
 
-      const form = new FormData();
-      form.append("docente_id", docente_id);
-      form.append("laboratorio_id", laboratorio_id);
-      form.append("origen", origen);
-      form.append("foto", fotoFile);
-      form.append("firma", sigFile);
+      // convierte base64 a File
+      const toFile=(dataUrl,name)=> {
+        const arr=dataUrl.split(','), mime=arr[0].match(/:(.*?);/)[1];
+        const bstr=atob(arr[1]); let n=bstr.length; const u8=new Uint8Array(n);
+        while(n--) u8[n]=bstr.charCodeAt(n);
+        return new File([u8], name, {type:mime});
+      };
 
-      const { data } = await api.post("/asistencias", form, { headers: { "Content-Type":"multipart/form-data" }});
-      setMsg(data.ok ? "Asistencia registrada" : (data.msg || "Error"));
-    }catch(ex){
-      setMsg(ex?.response?.data?.msg || "Error enviando asistencia");
-    }
-  }
+      const fd = new FormData();
+      fd.append('docente_id', form.docente_id);
+      fd.append('lab_id', form.lab_id);
+      fd.append('codigo', form.codigo); // (placeholder para QR/código)
+      fd.append('foto', toFile(snap, 'foto.jpg'));
+      fd.append('firma', toFile(firmaData, 'firma.png'));
+
+      const r = await uploadForm('/asistencia/registrar', fd);
+      setMsg(`${r.mensaje} (estado: ${r.estado})`);
+    }catch(e){ setMsg(e.message); }
+  };
 
   return (
-    <div className="p">
-      <h2>Registrar asistencia</h2>
-      <div className="row">
-        <input placeholder="Docente ID" value={docente_id} onChange={e=>setDocenteId(e.target.value)} />
-        <input placeholder="Laboratorio ID" value={laboratorio_id} onChange={e=>setLabId(e.target.value)} />
-        <select value={origen} onChange={e=>setOrigen(e.target.value)}>
-          <option value="codigo">Código</option>
-          <option value="qr">QR</option>
-        </select>
+    <div className="page">
+      <h2>Registro de asistencia (foto + firma)</h2>
+      {msg && <p style={{color: msg.includes('estado')?'#0a7':'crimson'}}>{msg}</p>}
+
+      <div className="row gap">
+        <div>
+          <video ref={videoRef} style={{width:320, height:240, background:'#000'}}/>
+          <div className="row gap mt">
+            <button onClick={tomarFoto}>Tomar foto</button>
+            {snap && <img src={snap} alt="preview" style={{width:120}}/>}
+          </div>
+          <canvas ref={canvasRef} hidden />
+        </div>
+
+        <div>
+          <canvas
+            ref={firmaRef}
+            width={320} height={180}
+            style={{border:'1px solid #ccc', background:'#fff'}}
+            onMouseMove={dibujarFirma}
+          />
+          <div className="row gap mt">
+            <button type="button" onClick={limpiarFirma}>Limpiar firma</button>
+          </div>
+        </div>
       </div>
 
-      <div className="card">
-        <video ref={videoRef} style={{maxWidth: "100%"}}/>
-        <button onClick={tomarFoto}>Tomar foto en vivo</button>
-        <canvas ref={canvasRef} style={{display:"none"}}/>
-        <p>{fotoFile ? `Foto lista (${Math.round(fotoFile.size/1024)} KB)` : "Sin foto"}</p>
+      <div className="row gap mt">
+        <input placeholder="ID Docente" value={form.docente_id} onChange={e=>setForm({...form,docente_id:e.target.value})}/>
+        <input placeholder="ID Lab" value={form.lab_id} onChange={e=>setForm({...form,lab_id:e.target.value})}/>
+        <input placeholder="Código/QR" value={form.codigo} onChange={e=>setForm({...form,codigo:e.target.value})}/>
+        <button onClick={enviar}>Enviar registro</button>
       </div>
-
-      <div className="card">
-        <h3>Firma</h3>
-        <canvas ref={sigRef} width={400} height={160} style={{border:"1px solid #ddd", borderRadius:8}}/>
-        <button onClick={()=>sigPad?.clear()}>Borrar firma</button>
-      </div>
-
-      <button onClick={enviar}>Enviar asistencia</button>
-      {msg && <p style={{color: msg.includes("Error")||msg.includes("No")||msg.includes("Falta") ? "crimson" : "green"}}>{msg}</p>}
     </div>
   );
 }

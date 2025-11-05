@@ -1,66 +1,60 @@
 import { useEffect, useState } from 'react';
+import { api } from '../api/http';
 import CardItem from '../components/CardItem';
 
-const empty = { id:null, nombre:'', email:'', rol:'docente', password:'', activo:1 };
+const empty = { id:null, nombre:'', fecha_ini:'', fecha_fin:'', activo:1 };
 
-export default function UsersPage(){
+export default function PeriodosPage(){
   const [rows,setRows]=useState([]);
   const [f,setF]=useState(empty);
   const [open,setOpen]=useState(false);
   const [msg,setMsg]=useState('');
 
-  const load=()=>api('/users').then(setRows);
+  const load=()=>api('/periodos').then(setRows);
   useEffect(()=>{load()},[]);
 
   const save=async(e)=>{e.preventDefault(); setMsg('');
     try{
-      const body={...f}; if(!body.password) delete body.password;
-      if(f.id) await api(`/users/${f.id}`,{method:'PUT', body:JSON.stringify(body)});
-      else     await api('/users',{method:'POST', body:JSON.stringify(body)});
+      if(f.id) await api(`/periodos/${f.id}`,{method:'PUT', body:JSON.stringify(f)});
+      else     await api('/periodos',{method:'POST', body:JSON.stringify(f)});
       setOpen(false); setF(empty); load();
     }catch(err){ setMsg(err.message); }
   };
-  const del=async(id)=>{ await api(`/users/${id}`,{method:'DELETE'}); load(); };
+  const del=async(id)=>{ try{ await api(`/periodos/${id}`,{method:'DELETE'}); load(); }catch(e){ alert(e.message); } };
 
   return (
     <div className="page">
-      <h2>Catálogo - Usuarios</h2>
+      <h2>Catálogo - Periodos</h2>
 
       <div className="col gap">
         {rows.map(x=>(
           <CardItem
             key={x.id}
             title={x.nombre}
-            subtitle={`${x.email}\nRol: ${x.rol}${x.activo? '' : ' (inactivo)'}`}
-            onEdit={()=>{ setF({...x, password:''}); setOpen(true); }}
+            subtitle={`Del ${x.fecha_ini} al ${x.fecha_fin}`}
+            onEdit={()=>{ setF(x); setOpen(true); }}
             onDelete={()=>del(x.id)}
           />
         ))}
       </div>
 
       <div className="mt">
-        <button className="btn-primary" onClick={()=>{setF(empty);setOpen(true);}}>+ Agregar Usuario</button>
+        <button className="btn-primary" onClick={()=>{setF(empty); setOpen(true);}}>+ Agregar Periodo</button>
       </div>
 
       {open && (
         <div className="form-card mt">
-          <h3>{f.id?'Editar':'Crear'} Usuario</h3>
+          <h3>{f.id?'Editar':'Crear'} Periodo</h3>
           {msg && <p style={{color:'crimson'}}>{msg}</p>}
           <form onSubmit={save}>
             <div className="form-row"><label>Nombre:</label>
               <input value={f.nombre} onChange={e=>setF({...f,nombre:e.target.value})} required/>
             </div>
-            <div className="form-row"><label>Email (@upp.edu.mx):</label>
-              <input type="email" value={f.email} onChange={e=>setF({...f,email:e.target.value})} required/>
+            <div className="form-row"><label>Fecha Inicio:</label>
+              <input type="date" value={f.fecha_ini} onChange={e=>setF({...f,fecha_ini:e.target.value})} required/>
             </div>
-            <div className="form-row"><label>Rol:</label>
-              <select value={f.rol} onChange={e=>setF({...f,rol:e.target.value})}>
-                <option value="docente">Docente</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-            <div className="form-row"><label>Contraseña (opcional):</label>
-              <input type="password" value={f.password} onChange={e=>setF({...f,password:e.target.value})}/>
+            <div className="form-row"><label>Fecha Fin:</label>
+              <input type="date" value={f.fecha_fin} onChange={e=>setF({...f,fecha_fin:e.target.value})} required/>
             </div>
             <div className="form-row"><label>Activo:</label>
               <select value={f.activo} onChange={e=>setF({...f,activo:Number(e.target.value)})}>

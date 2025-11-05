@@ -1,8 +1,7 @@
-// src/router/AppRouter.jsx
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 
-import App from "../App.jsx";                 // tu layout con <Outlet />
+import App from "../App.jsx";
 import PrivateRoute from "./PrivateRoute.jsx";
 
 import LoginDocente from "../pages/LoginDocente.jsx";
@@ -19,17 +18,16 @@ import AsistenciaDocente from "../pages/AsistenciaDocente.jsx";
 // Páginas Admin (Sprint 2)
 import UsersPage from "../pages/UsersPage.jsx";
 import LabsPage from "../pages/LabsPage.jsx";
-import DocentesPage from "../pages/DocentesPage.jsx";
 import HorariosPage from "../pages/HorariosPage.jsx";
 
-// Extras ya existentes
+// Extras
 import Dashboard from "../pages/Dashboard.jsx";
 import ReportarIncidencias from "../pages/ReportarIncidencias.jsx";
 
 import { getToken, getRole } from "../state/auth";
 import { redirectByRole } from "../utils/redirectByRole";
 
-// Componente simple para placeholders
+// Placeholder simple
 const WIP = ({ title }) => (
   <div style={{ padding: 16 }}>
     <h2>{title}</h2>
@@ -37,7 +35,6 @@ const WIP = ({ title }) => (
   </div>
 );
 
-// Redirección inteligente en raíz
 function HomeRedirect() {
   const nav = useNavigate();
   useEffect(() => {
@@ -82,15 +79,13 @@ export default function AppRouter() {
           </Route>
 
           {/* ================= ADMIN ================= */}
-          <Route element={<PrivateRoute allow={["superadmin", "admin_lab"]} />}>
+          <Route element={<PrivateRoute allow={["superadmin", "admin_lab", "admin"]} />}>
             <Route path="admin" element={<MenuAdmin />} />
-
-            {/* Gestión / Señales / Reportes */}
-           * <Route path="admin/users" element={<UsersPage />} /> 
+            {/* Gestionar */}
+            <Route path="admin/users" element={<UsersPage />} />
             <Route path="admin/labs" element={<LabsPage />} />
-            <Route path="admin/docentes" element={<DocentesPage />} />
             <Route path="admin/horarios" element={<HorariosPage />} />
-
+            {/* Otros */}
             <Route path="admin/incidentes" element={<WIP title="Incidentes de Laboratorio" />} />
             <Route path="admin/historial" element={<WIP title="Historial general / Reportes" />} />
             <Route path="admin/config" element={<WIP title="Configurar" />} />
