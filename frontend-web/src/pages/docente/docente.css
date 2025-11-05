@@ -1,0 +1,123 @@
+.page-shell {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background-color: #cfd2d8;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.menu-card {
+  background: #cfd2d8;
+  border-radius: 20px;
+  padding: 24px;
+  width: 380px;
+  text-align: center;
+}
+
+.menu-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-weight: bold;
+}
+
+.brand {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.menu-sub {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.center-title {
+  font-size: 22px;
+  margin: 12px 0;
+}
+
+.avatar {
+  width: 100px;
+  height: 100px;
+  background-color: #268bb8;
+  border-radius: 50%;
+  margin: 10px auto;
+}
+
+.profile-info {
+  font-weight: 600;
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.btn-primary {
+  background-color: #3b006a;
+  color: #fff;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.small {
+  width: auto;
+  margin-top: 8px;
+}
+
+.class-list {
+  margin-top: 20px;
+}
+
+.class-item {
+  background: #e6e8ed;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.class-item.success span {
+  background: #42ba96;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.class-item.danger span {
+  background: #d9534f;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.class-item.warning span {
+  background: #ff9800;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.photo-upload {
+  background: #e6e8ed;
+  border-radius: 10px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  font-size: 16px;
+  margin: 15px 0;
+}
+
+.back-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  position: absolute;
+  left: 20px;
+}
