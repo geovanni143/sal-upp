@@ -19,10 +19,11 @@ export default function Perfil() {
         <div className="avatar"></div>
 
         <div className="profile-info">
-          <h3>Geovanni Hernandez Hernandez</h3>
-          <p>geovanni@micorre.upp.mx</p>
+          <h3>Eduard Mejia Cruz</h3>
+          <p>eduard@micorre.upp.mx</p>
           <p>2331123683</p>
-          <p>Contraseña</p>
+          <p>Contraseña: upp123</p>
+          
         </div>
 
         <button className="btn-primary">Cambiar datos</button>
