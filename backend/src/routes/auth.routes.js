@@ -1,42 +1,72 @@
 // backend/src/routes/auth.routes.js
-import { Router } from 'express';
-import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
-import { pool } from '../db/mysql.js';
+import { Router } from "express";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
+import { pool } from "../db/mysql.js";
 
 const r = Router();
-const sha256 = s => crypto.createHash('sha256').update(s).digest('hex');
 
-// POST /api/login
-r.post('/login', async (req, res) => {
+// 🔐 POST /api/login
+r.post("/login", async (req, res) => {
   try {
     const b = req.body || {};
-    const rawUser = b.user ?? b.username ?? b.email ?? b.correo ?? '';
-    const password = b.password ?? b.pass ?? b.contra ?? '';
-    if (!rawUser || !password) return res.status(400).json({ error: 'Faltan credenciales' });
+    // Acepta distintos nombres de campos
+    const rawUser = b.user ?? b.username ?? b.email ?? b.correo ?? "";
+    const password = b.password ?? b.pass ?? b.contra ?? "";
 
-    const email = rawUser.includes('@')
-      ? rawUser.trim().toLowerCase()
-      : `${rawUser.trim().toLowerCase()}@upp.edu.mx`;
+    // Validación de campos requeridos
+    if (!rawUser || !password) {
+      return res.status(400).json({ error: "Faltan credenciales" });
+    }
 
+    // Buscar usuario por username (tu tabla lo usa así)
     const [rows] = await pool.query(
-      'SELECT id,nombre,email,rol,activo FROM users WHERE email=? AND pass_hash=? LIMIT 1',
-      [email, sha256(password)]
+      "SELECT id, username, nombre, email, role, activo, password_hash FROM users WHERE username = ? LIMIT 1",
+      [rawUser]
     );
 
-    if (!rows.length) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
-    const u = rows[0];
-    if (!u.activo) return res.status(403).json({ error: 'Usuario inactivo' });
+    if (!rows.length) {
+      return res
+        .status(401)
+        .json({ error: "Usuario o contraseña incorrectos" });
+    }
 
+    const u = rows[0];
+
+    // Si el usuario está inactivo
+    if (!u.activo) {
+      return res.status(403).json({ error: "Usuario inactivo" });
+    }
+
+    // Verificar contraseña con bcrypt
+    const ok = await bcrypt.compare(password, u.password_hash);
+    if (!ok) {
+      return res
+        .status(401)
+        .json({ error: "Usuario o contraseña incorrectos" });
+    }
+
+    // Generar token JWT
     const token = jwt.sign(
-      { sub: u.id, email: u.email, rol: u.rol },
-      process.env.JWT_SECRET || 'dev_key',
+      { sub: u.id, username: u.username, role: u.role },
+      process.env.JWT_SECRET || "dev_key",
       { expiresIn: `${process.env.JWT_EXP_MIN || 120}m` }
     );
 
-    res.json({ token, user: { id: u.id, nombre: u.nombre, email: u.email, rol: u.rol } });
+    // Responder al frontend
+    res.json({
+      token,
+      user: {
+        id: u.id,
+        nombre: u.nombre,
+        username: u.username,
+        email: u.email,
+        role: u.role,
+      },
+    });
   } catch (e) {
-    res.status(500).json({ error: 'Error de autenticación' });
+    console.error("[LOGIN ERROR]", e);
+    res.status(500).json({ error: "Error de autenticación" });
   }
 });
 

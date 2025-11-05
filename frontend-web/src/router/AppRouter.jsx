@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import App from "../App.jsx";
 import PrivateRoute from "./PrivateRoute.jsx";
 
+// Login y páginas base
 import LoginDocente from "../pages/LoginDocente.jsx";
 import LoginAdmin from "../pages/LoginAdmin.jsx";
 import Forbidden from "../pages/Forbidden.jsx";
@@ -12,10 +13,15 @@ import Forbidden from "../pages/Forbidden.jsx";
 import MenuDocente from "../pages/MenuDocente.jsx";
 import MenuAdmin from "../pages/MenuAdmin.jsx";
 
+// ==================== DOCENTE ====================
 // Páginas Docente
-import AsistenciaDocente from "../pages/AsistenciaDocente.jsx";
+import Asistencia from "../pages/docente/Asistencia.jsx";
+import Historial from "../pages/docente/Historial.jsx";
+import Perfil from "../pages/docente/Perfil.jsx";
+import Incidente from "../pages/docente/Incidente.jsx";
 
-// Páginas Admin (Sprint 2)
+
+// ==================== ADMIN =====================
 import UsersPage from "../pages/UsersPage.jsx";
 import LabsPage from "../pages/LabsPage.jsx";
 import HorariosPage from "../pages/HorariosPage.jsx";
@@ -27,7 +33,7 @@ import ReportarIncidencias from "../pages/ReportarIncidencias.jsx";
 import { getToken, getRole } from "../state/auth";
 import { redirectByRole } from "../utils/redirectByRole";
 
-// Placeholder simple
+// Placeholder simple (solo se usa en admin o 404)
 const WIP = ({ title }) => (
   <div style={{ padding: 16 }}>
     <h2>{title}</h2>
@@ -72,10 +78,10 @@ export default function AppRouter() {
           {/* ================= DOCENTE ================= */}
           <Route element={<PrivateRoute allow={["docente", "superadmin", "admin_lab"]} />}>
             <Route path="docente" element={<MenuDocente />} />
-            <Route path="docente/asistencia" element={<AsistenciaDocente />} />
-            <Route path="docente/historial" element={<WIP title="Historial de asistencias" />} />
-            <Route path="docente/incidente" element={<WIP title="Reportar incidente" />} />
-            <Route path="docente/perfil" element={<WIP title="Perfil docente" />} />
+            <Route path="docente/asistencia" element={<Asistencia />} />
+            <Route path="docente/historial" element={<Historial />} />
+            <Route path="docente/perfil" element={<Perfil />} />
+            <Route path="docente/incidente" element={<Incidente />} />
           </Route>
 
           {/* ================= ADMIN ================= */}
