@@ -121,3 +121,60 @@
   position: absolute;
   left: 20px;
 }
+/* ====== Estilos para la vista de asistencia ====== */
+.asistencia-card {
+  max-width: 420px;
+  margin: auto;
+  background: #cfd2d8;
+}
+
+.camera-view {
+  width: 100%;
+  max-width: 320px;
+  height: 240px;
+  background: #000;
+  border-radius: 10px;
+  margin: 10px auto;
+  display: block;
+}
+
+.firma-section {
+  margin-top: 20px;
+}
+
+.firma-canvas {
+  display: block;
+  margin: 8px auto;
+  background: #fff;
+  border: 1px solid #aaa;
+  border-radius: 10px;
+}
+
+.form input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  margin-bottom: 8px;
+  font-size: 15px;
+}
+
+.row.gap {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+}
+
+.mt {
+  margin-top: 12px;
+}
+
+.btn-secondary-ghost {
+  background: none;
+  border: 2px solid #3b006a;
+  color: #3b006a;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
