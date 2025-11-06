@@ -1,79 +1,86 @@
-import { useEffect, useState } from 'react';
-import CardItem from '../components/CardItem';
+import { useEffect, useState } from "react";
+import { usersApi } from "../api/http";
+import { useNavigate } from "react-router-dom";
+import "./menu.css";
 
-const empty = { id:null, nombre:'', email:'', rol:'docente', password:'', activo:1 };
+export default function UsersPage() {
+  const nav = useNavigate();
+  const [users, setUsers] = useState([]);
+  const [form, setForm] = useState({ id: null, nombre: "", email: "", rol: "docente", password: "", activo: 1 });
+  const [modoEdicion, setModoEdicion] = useState(false);
 
-export default function UsersPage(){
-  const [rows,setRows]=useState([]);
-  const [f,setF]=useState(empty);
-  const [open,setOpen]=useState(false);
-  const [msg,setMsg]=useState('');
-
-  const load=()=>api('/users').then(setRows);
-  useEffect(()=>{load()},[]);
-
-  const save=async(e)=>{e.preventDefault(); setMsg('');
-    try{
-      const body={...f}; if(!body.password) delete body.password;
-      if(f.id) await api(`/users/${f.id}`,{method:'PUT', body:JSON.stringify(body)});
-      else     await api('/users',{method:'POST', body:JSON.stringify(body)});
-      setOpen(false); setF(empty); load();
-    }catch(err){ setMsg(err.message); }
+  const load = async () => {
+    const { data } = await usersApi.list();
+    setUsers(data);
   };
-  const del=async(id)=>{ await api(`/users/${id}`,{method:'DELETE'}); load(); };
+
+  useEffect(() => { load(); }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (form.id) await usersApi.update(form.id, form);
+    else await usersApi.create(form);
+    await load();
+    setForm({ id: null, nombre: "", email: "", rol: "docente", password: "", activo: 1 });
+    setModoEdicion(false);
+  };
+
+  const handleEdit = (u) => { setForm(u); setModoEdicion(true); };
+  const handleDelete = async (id) => {
+    if (!confirm("¿Eliminar usuario?")) return;
+    await usersApi.remove(id);
+    await load();
+  };
 
   return (
-    <div className="page">
-      <h2>Catálogo - Usuarios</h2>
-
-      <div className="col gap">
-        {rows.map(x=>(
-          <CardItem
-            key={x.id}
-            title={x.nombre}
-            subtitle={`${x.email}\nRol: ${x.rol}${x.activo? '' : ' (inactivo)'}`}
-            onEdit={()=>{ setF({...x, password:''}); setOpen(true); }}
-            onDelete={()=>del(x.id)}
-          />
-        ))}
-      </div>
-
-      <div className="mt">
-        <button className="btn-primary" onClick={()=>{setF(empty);setOpen(true);}}>+ Agregar Usuario</button>
-      </div>
-
-      {open && (
-        <div className="form-card mt">
-          <h3>{f.id?'Editar':'Crear'} Usuario</h3>
-          {msg && <p style={{color:'crimson'}}>{msg}</p>}
-          <form onSubmit={save}>
-            <div className="form-row"><label>Nombre:</label>
-              <input value={f.nombre} onChange={e=>setF({...f,nombre:e.target.value})} required/>
-            </div>
-            <div className="form-row"><label>Email (@upp.edu.mx):</label>
-              <input type="email" value={f.email} onChange={e=>setF({...f,email:e.target.value})} required/>
-            </div>
-            <div className="form-row"><label>Rol:</label>
-              <select value={f.rol} onChange={e=>setF({...f,rol:e.target.value})}>
-                <option value="docente">Docente</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-            <div className="form-row"><label>Contraseña (opcional):</label>
-              <input type="password" value={f.password} onChange={e=>setF({...f,password:e.target.value})}/>
-            </div>
-            <div className="form-row"><label>Activo:</label>
-              <select value={f.activo} onChange={e=>setF({...f,activo:Number(e.target.value)})}>
-                <option value={1}>Sí</option><option value={0}>No</option>
-              </select>
-            </div>
-            <div className="action-row">
-              <button type="button" className="btn-primary" onClick={()=>setOpen(false)}>Cancelar</button>
-              <button className="btn-primary">Guardar</button>
-            </div>
-          </form>
+    <div className="page-shell">
+      <div className="menu-card smooth-card" style={{ maxWidth: 480 }}>
+        <div className="top-header">
+          <button className="btn-back" onClick={() => nav(-1)}>← Regresar</button>
+          <h1>Catálogo — Usuarios</h1>
         </div>
-      )}
+
+        <div className="list-container">
+          {users.map((u) => (
+            <div key={u.id} className="list-item">
+              <div className="item-info">
+                <h4>{u.nombre}</h4>
+                <p>{u.email}</p>
+                <small>{u.rol}</small>
+              </div>
+              <div className="item-actions">
+                <button className="btn-edit" onClick={() => handleEdit(u)}>Editar</button>
+                <button className="btn-delete" onClick={() => handleDelete(u.id)}>🗑</button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <form onSubmit={handleSubmit} className="form-box">
+          <h2>{modoEdicion ? "Editar" : "Crear"} Usuario</h2>
+          <label>Nombre:</label>
+          <input type="text" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} required />
+
+          <label>Email:</label>
+          <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+
+          <label>Rol:</label>
+          <select value={form.rol} onChange={(e) => setForm({ ...form, rol: e.target.value })}>
+            <option value="docente">Docente</option>
+            <option value="admin_lab">Admin Lab</option>
+            <option value="admin">Admin</option>
+            <option value="superadmin">Superadmin</option>
+          </select>
+
+          <label>Contraseña (opcional al editar):</label>
+          <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+
+          <div className="btn-row">
+            <button type="button" className="btn-cancel" onClick={() => setForm({ id: null, nombre: "", email: "", rol: "docente", password: "", activo: 1 })}>Cancelar</button>
+            <button type="submit" className="btn-save">Guardar</button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

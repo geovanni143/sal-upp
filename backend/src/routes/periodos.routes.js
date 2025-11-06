@@ -4,41 +4,67 @@ import log from '../middlewares/bitacora.js';
 
 const r = Router();
 
-r.get('/', async (_req,res)=>{
-  const [rows] = await pool.query('SELECT id,nombre,fecha_ini,fecha_fin,activo FROM periodos ORDER BY fecha_ini DESC');
+/* LISTAR (oculta eliminados por default) */
+r.get('/', async (req, res) => {
+  const { q = '', incl_del = '0' } = req.query;
+  const where = [];
+  const vals = [];
+
+  if (q) {
+    where.push(`(nombre LIKE ? OR DATE_FORMAT(fecha_ini,'%Y-%m-%d') LIKE ? OR DATE_FORMAT(fecha_fin,'%Y-%m-%d') LIKE ?)`);
+    vals.push(`%${q}%`, `%${q}%`, `%${q}%`);
+  }
+  if (incl_del !== '1') where.push('eliminado=0');
+
+  const sql = `
+    SELECT id,nombre,fecha_ini,fecha_fin,activo,eliminado
+    FROM periodos
+    ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+    ORDER BY fecha_ini DESC, id DESC
+  `;
+  const [rows] = await pool.query(sql, vals);
   res.json(rows);
 });
 
-r.post('/', log('periodos'), async (req,res)=>{
-  const { nombre, fecha_ini, fecha_fin, activo=1 } = req.body;
-  if(new Date(fecha_ini) >= new Date(fecha_fin)) return res.status(422).json({error:'fecha_ini < fecha_fin'});
-  const [dup] = await pool.query('SELECT id FROM periodos WHERE nombre=?',[nombre]);
-  if(dup.length) return res.status(409).json({error:'El nombre ya existe'});
-  const [rs] = await pool.execute('INSERT INTO periodos(nombre,fecha_ini,fecha_fin,activo) VALUES(?,?,?,?)',
-    [nombre,fecha_ini,fecha_fin,activo]);
-  res.locals.entityId = rs.insertId;
-  res.status(201).json({id:rs.insertId});
+/* CREAR */
+r.post('/', log('periodos'), async (req, res) => {
+  const { nombre, fecha_ini, fecha_fin } = req.body;
+  if (!nombre || !fecha_ini || !fecha_fin) return res.status(400).json({ error: 'Nombre/fechas obligatorios' });
+
+  const [rs] = await pool.execute(
+    'INSERT INTO periodos (nombre,fecha_ini,fecha_fin,activo) VALUES (?,?,?,1)',
+    [nombre, fecha_ini, fecha_fin]
+  );
+  res.status(201).json({ id: rs.insertId });
 });
 
-r.put('/:id', log('periodos'), async (req,res)=>{
+/* ACTUALIZAR */
+r.put('/:id', log('periodos'), async (req, res) => {
   const { id } = req.params;
-  const { nombre, fecha_ini, fecha_fin, activo=1 } = req.body;
-  if(new Date(fecha_ini) >= new Date(fecha_fin)) return res.status(422).json({error:'fecha_ini < fecha_fin'});
-  const [dup] = await pool.query('SELECT id FROM periodos WHERE nombre=? AND id<>?',[nombre,id]);
-  if(dup.length) return res.status(409).json({error:'El nombre ya existe'});
-  await pool.execute('UPDATE periodos SET nombre=?, fecha_ini=?, fecha_fin=?, activo=? WHERE id=?',
-    [nombre,fecha_ini,fecha_fin,activo,id]);
-  res.locals.entityId = id;
-  res.json({ok:true});
+  const { nombre, fecha_ini, fecha_fin, activo = 1 } = req.body;
+
+  await pool.execute(
+    'UPDATE periodos SET nombre=?, fecha_ini=?, fecha_fin=?, activo=? WHERE id=? AND eliminado=0',
+    [nombre, fecha_ini, fecha_fin, +activo, id]
+  );
+  res.json({ ok: true });
 });
 
-r.delete('/:id', log('periodos'), async (req,res)=>{
+/* TOGGLE ACTIVO */
+r.patch('/:id/active', log('periodos'), async (req, res) => {
   const { id } = req.params;
-  const [h] = await pool.query('SELECT id FROM horarios WHERE periodo_id=? LIMIT 1',[id]);
-  if(h.length) return res.status(409).json({error:'No se puede eliminar. Existen horarios vinculados.'});
-  await pool.execute('DELETE FROM periodos WHERE id=?',[id]);
-  res.locals.entityId = id;
-  res.json({ok:true});
+  const [[row]] = await pool.query('SELECT activo FROM periodos WHERE id=? AND eliminado=0', [id]);
+  if (!row) return res.status(404).json({ error: 'No encontrado' });
+  const nuevo = row.activo ? 0 : 1;
+  await pool.execute('UPDATE periodos SET activo=? WHERE id=?', [nuevo, id]);
+  res.json({ id: +id, activo: nuevo });
+});
+
+/* SOFT-DELETE (ocultar) */
+r.delete('/:id', log('periodos'), async (req, res) => {
+  const { id } = req.params;
+  await pool.execute('UPDATE periodos SET eliminado=1, eliminado_en=NOW(), activo=0 WHERE id=?', [id]);
+  res.json({ ok: true });
 });
 
 export default r;
