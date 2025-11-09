@@ -1,15 +1,26 @@
+// backend/src/services/db.js
 import mysql from "mysql2/promise";
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || "localhost",
+export const pool = mysql.createPool({
+  host: process.env.DB_HOST || "127.0.0.1",
   user: process.env.DB_USER || "root",
   password: process.env.DB_PASS || "",
-  database: process.env.DB_NAME || "sal_upp",   // <-- OJO: usa sal_upp
+  database: process.env.DB_NAME || "sal_upp",
+  waitForConnections: true,
   connectionLimit: 10,
+  queueLimit: 0,
 });
 
-export default {
-  async query(sql, params = []) { const [rows] = await pool.query(sql, params); return rows; },
-  async queryOne(sql, params = []) { const [rows] = await pool.query(sql, params); return rows[0] || null; },
-  async exec(sql, params = []) { const [r] = await pool.execute(sql, params); return r; },
+// Helpers opcionales (compatibilidad con imports 'default')
+const db = {
+  async query(sql, params = []) {
+    const [rows] = await pool.query(sql, params);
+    return rows;
+  },
+  async exec(sql, params = []) {
+    const [result] = await pool.execute(sql, params);
+    return result;
+  },
 };
+
+export default db;

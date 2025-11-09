@@ -1,51 +1,196 @@
-import db from "../db/mysql.js";
-import { esEmailUPP } from "../utils/validaciones.js";
+import { pool } from "../services/db.js";
+import { hashPassword } from "../services/hash.js";
 
-export async function listUsers(req,res){
-  const { q="", rol } = req.query;
-  let sql = "SELECT id,nombre,email,rol,activo FROM users WHERE 1=1";
-  const p = [];
-  if(rol){ sql += " AND rol=?"; p.push(rol); }
-  if(q){ sql += " AND (nombre LIKE ? OR email LIKE ?)"; p.push(`%${q}%`,`%${q}%`); }
-  sql += " ORDER BY nombre ASC";
-  const [rows] = await db.query(sql,p);
-  res.json(rows);
+/** GET /api/users */
+export async function listUsers(req, res) {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, username, nombre, apellidos, email, rol, activo
+       FROM users
+       WHERE eliminado = 0
+       ORDER BY FIELD(rol,'superadmin','admin','docente'), nombre ASC`
+    );
+    res.json(rows);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Error al listar usuarios" });
+  }
 }
 
-export async function createUser(req,res){
-  const { nombre, email, rol='docente', activo=1, password } = req.body;
-  if(!nombre || !email) return res.status(400).json({error:"Nombre y email son obligatorios"});
-  if(!esEmailUPP(email)) return res.status(422).json({error:"Debe ser correo institucional @upp.edu.mx"});
-  const [dup] = await db.query("SELECT id FROM users WHERE email=?", [email]);
-  if(dup.length) return res.status(409).json({error:"El email ya existe"});
-  const pass = password?.trim() || "upp123";
-  await db.query("INSERT INTO users (nombre,email,rol,pass_hash,activo) VALUES (?,?,?,?,?)",
-    [nombre.trim(), email.trim(), rol, db.sha2(pass), Number(activo)?1:0]); // usa helper sha2 del pool
-  res.status(201).json({ok:true});
+/** POST /api/users
+ * body: { username, nombre, apellidos?, email, rol?, activo?, password }
+ * - Crea con password hasheado.
+ */
+export async function createUser(req, res) {
+  try {
+    const {
+      username,
+      nombre,
+      apellidos = "",
+      email,
+      rol = "docente",
+      activo = 1,
+      password,
+    } = req.body;
+
+    if (!username || !email || !nombre || !password) {
+      return res.status(400).json({
+        message: "Faltan campos obligatorios (username, email, nombre, password)",
+      });
+    }
+
+    // Evitar creación de superadmin salvo que quien crea sea superadmin (si usas auth)
+    if (rol === "superadmin" && req.user?.rol !== "superadmin") {
+      return res.status(403).json({ message: "No autorizado para crear superadmin" });
+    }
+
+    // Duplicados
+    const [dups] = await pool.query(
+      "SELECT id FROM users WHERE (username=? OR email=?) AND eliminado=0 LIMIT 1",
+      [username, email]
+    );
+    if (dups.length) {
+      return res.status(409).json({ message: "Username o email ya existen" });
+    }
+
+    const passHash = await hashPassword(password);
+
+    const [result] = await pool.query(
+      `INSERT INTO users (username, nombre, apellidos, email, rol, activo, password_hash)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [username, nombre, apellidos, email, rol, Number(activo) ? 1 : 0, passHash]
+    );
+
+    const [nuevo] = await pool.query(
+      `SELECT id, username, nombre, apellidos, email, rol, activo
+       FROM users WHERE id = ?`,
+      [result.insertId]
+    );
+
+    res.status(201).json(nuevo[0]);
+  } catch (e) {
+    console.error(e);
+    if (e.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({ message: "Username o email ya existen" });
+    }
+    res.status(500).json({ message: "Error al crear usuario" });
+  }
 }
 
-export async function updateUser(req,res){
-  const { id } = req.params;
-  const { nombre, email, rol, activo=1 } = req.body;
-  if(!nombre || !email) return res.status(400).json({error:"Datos incompletos"});
-  if(!esEmailUPP(email)) return res.status(422).json({error:"Debe ser correo institucional"});
-  const [dup] = await db.query("SELECT id FROM users WHERE email=? AND id<>?", [email, id]);
-  if(dup.length) return res.status(409).json({error:"El email ya existe"});
-  await db.query("UPDATE users SET nombre=?, email=?, rol=?, activo=? WHERE id=?",
-    [nombre.trim(), email.trim(), rol, Number(activo)?1:0, id]);
-  res.json({ok:true});
+/** PUT /api/users/:id
+ * body: { username?, nombre?, apellidos?, email?, rol?, activo? }
+ * - NO cambia contraseña aquí.
+ * - NO permite editar superadmin salvo por superadmin.
+ */
+export async function updateUser(req, res) {
+  try {
+    const { id } = req.params;
+    const { username, nombre, apellidos, email, rol, activo } = req.body;
+
+    // Protección superadmin
+    const [rows] = await pool.query(
+      `SELECT rol FROM users WHERE id=? AND eliminado=0`,
+      [id]
+    );
+    if (!rows.length) return res.status(404).json({ message: "Usuario no encontrado" });
+    if (rows[0].rol === "superadmin" && req.user?.rol !== "superadmin") {
+      return res.status(403).json({ message: "No puedes editar al superadmin" });
+    }
+
+    // Evitar duplicados (email/username de otros)
+    if (email || username) {
+      const [dup] = await pool.query(
+        `SELECT id FROM users
+         WHERE eliminado=0 AND id<>? AND (email=? OR username=?) LIMIT 1`,
+        [id, email ?? "", username ?? ""]
+      );
+      if (dup.length) {
+        return res.status(409).json({ message: "Username o email ya existen" });
+      }
+    }
+
+    const fields = [];
+    const params = [];
+    if (username != null)   { fields.push("username=?");   params.push(username); }
+    if (nombre != null)     { fields.push("nombre=?");     params.push(nombre); }
+    if (apellidos != null)  { fields.push("apellidos=?");  params.push(apellidos); }
+    if (email != null)      { fields.push("email=?");      params.push(email); }
+    if (rol != null)        { fields.push("rol=?");        params.push(rol); }
+    if (activo != null)     { fields.push("activo=?");     params.push(Number(activo) ? 1 : 0); }
+
+    if (!fields.length) return res.json({ message: "Nada que actualizar" });
+
+    params.push(id);
+
+    await pool.query(
+      `UPDATE users SET ${fields.join(", ")}, updated_at = NOW()
+       WHERE id=? AND eliminado=0`,
+      params
+    );
+
+    const [user] = await pool.query(
+      `SELECT id, username, nombre, apellidos, email, rol, activo
+       FROM users WHERE id=?`,
+      [id]
+    );
+    res.json(user[0]);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Error al actualizar usuario" });
+  }
 }
 
-export async function deleteUser(req,res){
-  const { id } = req.params;
-  const [[rel]] = await db.query(
-    `SELECT 
-      (SELECT COUNT(*) FROM horarios WHERE docente_id=?) AS ch,
-      (SELECT COUNT(*) FROM asistencias WHERE docente_id=?) AS ca`,
-      [id,id]
-  );
-  if((rel.ch||0) > 0 || (rel.ca||0) > 0)
-    return res.status(409).json({error:"No se puede eliminar: tiene registros vinculados"});
-  await db.query("DELETE FROM users WHERE id=?", [id]);
-  res.json({ok:true});
+/** PATCH /api/users/:id/activo
+ * body: { activo }
+ */
+export async function toggleActive(req, res) {
+  try {
+    const { id } = req.params;
+    const { activo } = req.body;
+
+    const [rows] = await pool.query(
+      `SELECT rol FROM users WHERE id=? AND eliminado=0`,
+      [id]
+    );
+    if (!rows.length) return res.status(404).json({ message: "Usuario no encontrado" });
+    if (rows[0].rol === "superadmin") {
+      return res.status(403).json({ message: "No puedes desactivar al superadmin" });
+    }
+
+    await pool.query(
+      `UPDATE users SET activo=?, updated_at=NOW() WHERE id=?`,
+      [Number(activo) ? 1 : 0, id]
+    );
+    res.json({ id, activo: Number(activo) ? 1 : 0 });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Error al cambiar activo" });
+  }
+}
+
+/** DELETE /api/users/:id (soft delete) */
+export async function removeUser(req, res) {
+  try {
+    const { id } = req.params;
+
+    const [rows] = await pool.query(
+      `SELECT rol FROM users WHERE id=? AND eliminado=0`,
+      [id]
+    );
+    if (!rows.length) return res.status(404).json({ message: "Usuario no encontrado" });
+    if (rows[0].rol === "superadmin") {
+      return res.status(403).json({ message: "No puedes eliminar al superadmin" });
+    }
+
+    await pool.query(
+      `UPDATE users
+       SET eliminado=1, eliminado_en=NOW(), activo=0, updated_at=NOW()
+       WHERE id=?`,
+      [id]
+    );
+    res.json({ id, eliminado: 1 });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Error al eliminar usuario" });
+  }
 }

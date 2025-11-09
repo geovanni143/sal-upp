@@ -21,7 +21,7 @@ export default function ConfigPage() {
           <button className="big-action" onClick={goQR}>Generar QR/Código</button>
         </div>
 
-        <div className="help-foot">A-93 Programación visual</div>
+  
       </div>
     </div>
   );

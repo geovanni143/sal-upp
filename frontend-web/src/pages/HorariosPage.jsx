@@ -1,124 +1,196 @@
-import { useEffect, useState } from "react";
-import { horariosApi, periodosApi, labsApi, usersApi } from "../api/http";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { periodosApi, labsApi, horariosApi } from "../api/http";
 import "./menu.css";
+import "./horarios-scope.css";
 
 const DIAS = [
-  { v: "lu", t: "Lunes" },
-  { v: "ma", t: "Martes" },
-  { v: "mi", t: "Miércoles" },
-  { v: "ju", t: "Jueves" },
-  { v: "vi", t: "Viernes" },
-  { v: "sa", t: "Sábado" },
+  { id:1, label:"Lunes" }, { id:2, label:"Martes" }, { id:3, label:"Miércoles" },
+  { id:4, label:"Jueves" }, { id:5, label:"Viernes" },
 ];
 
-export default function HorariosPage() {
-  const nav = useNavigate();
-  const [horarios, setHorarios] = useState([]);
+const horasMedias = (() => {
+  const out = []; const pad = (n)=> String(n).padStart(2,"0");
+  for (let H=7; H<20; H++){ out.push(`${pad(H)}:00`); out.push(`${pad(H)}:30`); }
+  return out;
+})();
+
+export default function HorariosPage(){
   const [periodos, setPeriodos] = useState([]);
   const [labs, setLabs] = useState([]);
-  const [docentes, setDocentes] = useState([]);
-  const [form, setForm] = useState({
-    id: null, periodo_id: "", lab_id: "", docente_id: "", dia: "lu", hora_ini: "07:00", hora_fin: "08:00", activo: 1
-  });
+  const [periodoId, setPeriodoId] = useState("");
+  const [labId, setLabId] = useState("");
 
-  const loadData = async () => {
-    const [{ data: per }, { data: lb }, { data: us }] = await Promise.all([
-      periodosApi.list(), labsApi.list(), usersApi.list({ rol: "docente" })
-    ]);
-    setPeriodos(per);
-    setLabs(lb);
-    setDocentes(us);
+  const [bloques, setBloques] = useState([]);           // existentes
+  const [draftUpserts, setDraftUpserts] = useState([]); // nuevos/edits
+  const [draftDeletes, setDraftDeletes] = useState([]); // ids a borrar
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+
+  /* ===== Cargar catálogos ===== */
+  useEffect(()=>{(async()=>{
+    try{
+      const [p, l] = await Promise.all([
+        periodosApi.list({ includeDeleted: 0 }),
+        labsApi.list({}),
+      ]);
+      setPeriodos(p.data || []);
+      setLabs(l.data || []);
+    }catch(e){
+      setErr("Error al listar periodos o laboratorios");
+      console.error(e);
+    }
+  })();},[]);
+
+  /* ===== Cargar semana ===== */
+  const cargarSemana = async()=>{
+    if(!periodoId || !labId){ setBloques([]); return; }
+    setLoading(true); setErr("");
+    try{
+      const { data } = await horariosApi.semana({ periodo_id: periodoId, lab_id: labId });
+      const norm = (s)=> (s||"").slice(0,5);
+      const bloquesNorm = (data?.bloques || []).map(b => ({
+        ...b,
+        hora_ini: norm(b.hora_ini),
+        hora_fin: norm(b.hora_fin),
+      }));
+      setBloques(bloquesNorm);
+      setDraftUpserts([]); setDraftDeletes([]);
+    }catch(e){
+      setErr(e?.response?.data?.error || e.message);
+    }finally{
+      setLoading(false);
+    }
+  };
+  useEffect(()=>{ cargarSemana(); }, [periodoId, labId]);
+
+  /* ===== Helpers ===== */
+  const avanzar = (hhmm, addMin)=>{
+    const [H,M] = hhmm.split(":").map(Number);
+    const d = new Date(2000,1,1,H,M); d.setMinutes(d.getMinutes()+addMin);
+    return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  };
+  const bloquesVigentes = useMemo(()=>[...bloques, ...draftUpserts],[bloques, draftUpserts]);
+  const cellBloques = (dia, hhmm)=>
+    bloquesVigentes.filter(b => b.dia===dia && b.hora_ini<=hhmm && b.hora_fin>hhmm);
+
+  /* ===== Crear / borrar ===== */
+  const crearDesdeCelda = (dia, hora_ini)=>{
+    const materia = prompt("Materia:");
+    if(!materia) return;
+    const hora_fin = prompt("Hora fin (HH:MM):", avanzar(hora_ini, 60)) || avanzar(hora_ini, 60);
+    if (hora_fin <= hora_ini) return alert("Hora fin debe ser mayor a hora inicio.");
+    const choca = bloquesVigentes.some(b => b.dia===dia && (hora_ini < b.hora_fin) && (b.hora_ini < hora_fin));
+    if (choca) return alert("Traslape con otro bloque.");
+    const docente_id_str = prompt("ID de docente (opcional):",""); // TODO: dropdown
+    const docente_id = docente_id_str ? Number(docente_id_str) : null;
+    const grupo = prompt("Grupo (opcional):") || null;
+
+    setDraftUpserts(prev => [...prev, { dia, hora_ini, hora_fin, materia, docente_id, grupo, activo:1 }]);
+  };
+  const borrarBloque = (b)=>{
+    if(!confirm("¿Eliminar este bloque?")) return;
+    if (!b.id) setDraftUpserts(prev => prev.filter(x => x !== b));
+    else setDraftDeletes(prev => [...prev, b.id]);
   };
 
-  const loadHorarios = async () => {
-    const { data } = await horariosApi.list();
-    setHorarios(data);
+  /* ===== Guardar & PDF ===== */
+  const guardar = async()=>{
+    if(!periodoId || !labId) return alert("Selecciona periodo y laboratorio");
+    try{
+      await horariosApi.bulk({
+        periodo_id: Number(periodoId),
+        lab_id: Number(labId),
+        upserts: draftUpserts,
+        deletes: draftDeletes
+      });
+      await cargarSemana();
+      alert("Horario guardado");
+    }catch(e){
+      alert(e?.response?.data?.reason || e?.response?.data?.error || e.message);
+    }
   };
-
-  useEffect(() => { loadData(); loadHorarios(); }, []);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (form.id) await horariosApi.update(form.id, form);
-    else await horariosApi.create(form);
-    await loadHorarios();
-    setForm({ id: null, periodo_id: "", lab_id: "", docente_id: "", dia: "lu", hora_ini: "07:00", hora_fin: "08:00", activo: 1 });
-  };
-
-  const handleEdit = (r) => setForm(r);
-  const handleDelete = async (id) => {
-    if (!confirm("¿Eliminar horario?")) return;
-    await horariosApi.remove(id);
-    await loadHorarios();
+  const pdf = async()=>{
+    if(!periodoId || !labId) return;
+    try{
+      const res = await horariosApi.pdf({ periodo_id: periodoId, lab_id: labId });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = url; a.download = "horario.pdf"; a.click();
+      URL.revokeObjectURL(url);
+    }catch(e){ alert(e?.response?.data?.error || e.message); }
   };
 
   return (
-    <div className="page-shell">
-      <div className="menu-card smooth-card" style={{ maxWidth: 520 }}>
-        <div className="top-header">
-          <button className="btn-back" onClick={() => nav(-1)}>← Regresar</button>
-          <h1>Catálogo — Horarios</h1>
+    <div className="page-shell hs-page">
+      <div className="menu-card hs__card">
+        <div className="hs__head">
+          <div className="hs__brand">Catálogo — Horarios</div>
+          <div className="hs__sub">Crea el horario semanal completo por laboratorio</div>
         </div>
 
-        <div className="list-container">
-          {horarios.map((h) => (
-            <div key={h.id} className="list-item">
-              <div className="item-info">
-                <h4>{h.lab}</h4>
-                <p>{h.periodo} · {h.docente_nombre}</p>
-                <small>{DIAS.find(d => d.v === h.dia)?.t} — {h.hora_ini} a {h.hora_fin}</small>
-              </div>
-              <div className="item-actions">
-                <button className="btn-edit" onClick={() => handleEdit(h)}>Editar</button>
-                <button className="btn-delete" onClick={() => handleDelete(h.id)}>🗑</button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <form onSubmit={handleSubmit} className="form-box">
-          <h2>{form.id ? "Editar" : "Crear"} Horario</h2>
-
-          <label>Periodo:</label>
-          <select value={form.periodo_id} onChange={(e) => setForm({ ...form, periodo_id: e.target.value })} required>
-            <option value="">Selecciona un periodo</option>
+        {/* filtros */}
+        <div className="hs__filters">
+          <select className="input" value={periodoId} onChange={e=>setPeriodoId(e.target.value)}>
+            <option value="">Periodo…</option>
             {periodos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
           </select>
 
-          <label>Laboratorio:</label>
-          <select value={form.lab_id} onChange={(e) => setForm({ ...form, lab_id: e.target.value })} required>
-            <option value="">Selecciona un laboratorio</option>
+          <select className="input" value={labId} onChange={e=>setLabId(e.target.value)}>
+            <option value="">Laboratorio…</option>
             {labs.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
           </select>
 
-          <label>Docente:</label>
-          <select value={form.docente_id} onChange={(e) => setForm({ ...form, docente_id: e.target.value })} required>
-            <option value="">Selecciona un docente</option>
-            {docentes.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
-          </select>
-
-          <label>Día de la semana:</label>
-          <select value={form.dia} onChange={(e) => setForm({ ...form, dia: e.target.value })}>
-            {DIAS.map(d => <option key={d.v} value={d.v}>{d.t}</option>)}
-          </select>
-
-          <div className="grid-2">
-            <div>
-              <label>Hora inicio:</label>
-              <input type="time" value={form.hora_ini} onChange={(e) => setForm({ ...form, hora_ini: e.target.value })} required />
-            </div>
-            <div>
-              <label>Hora fin:</label>
-              <input type="time" value={form.hora_fin} onChange={(e) => setForm({ ...form, hora_fin: e.target.value })} required />
-            </div>
+          <div className="hs__actions">
+            <button className="btn ghost" onClick={cargarSemana} disabled={loading}>Recargar</button>
+            <button className="btn" onClick={guardar}>Guardar semana</button>
+            <button className="btn ghost" onClick={pdf}>PDF</button>
           </div>
+        </div>
 
-          <div className="btn-row">
-            <button type="button" className="btn-cancel" onClick={() => setForm({ id: null, periodo_id: "", lab_id: "", docente_id: "", dia: "lu", hora_ini: "07:00", hora_fin: "08:00", activo: 1 })}>Cancelar</button>
-            <button type="submit" className="btn-save">Guardar</button>
-          </div>
-        </form>
+        {err && <p className="error-inline" style={{marginTop:4}}>{err}</p>}
+        {!periodoId || !labId ? (
+          <p className="hs__muted">Selecciona un periodo y un laboratorio para comenzar.</p>
+        ) : null}
+
+        {/* ÚNICA VISTA: Tabla siempre (scroll en pantallas chicas) */}
+        <div className="hs__wrap">
+          <table className="hs__grid">
+            <thead>
+              <tr>
+                <th style={{width:96}}>Hora</th>
+                {DIAS.map(d => <th key={d.id}>{d.label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {horasMedias.map(hhmm => (
+                <tr key={hhmm}>
+                  <td className="hs__time">{hhmm}</td>
+                  {DIAS.map(d => {
+                    const b = cellBloques(d.id, hhmm)[0] || null;
+                    return (
+                      <td key={d.id} className="hs__cell"
+                          onDoubleClick={()=>crearDesdeCelda(d.id, hhmm)}
+                          title="Doble clic para crear bloque">
+                        {b && (
+                          <div className="hs__block" onClick={(e)=>e.stopPropagation()}>
+                            <div className="hs__btitle">{b.materia}{b.grupo?` (${b.grupo})`:""}</div>
+                            <div className="hs__bmeta">{b.hora_ini}–{b.hora_fin}</div>
+                            <div className="hs__bmeta">Doc: {b.docente_nombre || b.docente_id || "-"}</div>
+                            <button className="hs__mini danger" onClick={()=>borrarBloque(b)}>×</button>
+                          </div>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {periodoId && labId && bloquesVigentes.length===0 && (
+            <p className="hs__muted">No hay bloques aún. Doble clic en una celda para agregar.</p>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -1,67 +1,54 @@
 // backend/src/routes/auth.routes.js
 import { Router } from "express";
 import jwt from "jsonwebtoken";
+import { pool } from "../services/db.js";
 import bcrypt from "bcrypt";
-import { pool } from "../db/mysql.js";
 
 const r = Router();
 
-// 🔐 POST /api/login
 r.post("/login", async (req, res) => {
   try {
     const b = req.body || {};
-    // Acepta distintos nombres de campos
-    const rawUser = b.user ?? b.username ?? b.email ?? b.correo ?? "";
-    const password = b.password ?? b.pass ?? b.contra ?? "";
+    const rawUser = b.user ?? b.username ?? b.email ?? "";
+    const password = b.password ?? "";
 
-    // Validación de campos requeridos
-    if (!rawUser || !password) {
-      return res.status(400).json({ error: "Faltan credenciales" });
-    }
+    if (!rawUser || !password) return res.status(400).json({ error: "Faltan credenciales" });
 
-    // Buscar usuario por username (tu tabla lo usa así)
     const [rows] = await pool.query(
-      "SELECT id, username, nombre, email, role, activo, password_hash FROM users WHERE username = ? LIMIT 1",
-      [rawUser]
+      `SELECT id, username, nombre, apellidos, email, rol, activo, password_hash
+       FROM users
+       WHERE eliminado=0 AND (username=? OR email=?)
+       LIMIT 1`,
+      [rawUser, rawUser]
     );
-
-    if (!rows.length) {
-      return res
-        .status(401)
-        .json({ error: "Usuario o contraseña incorrectos" });
-    }
+    if (!rows.length) return res.status(401).json({ error: "Usuario o contraseña inválidos" });
 
     const u = rows[0];
 
-    // Si el usuario está inactivo
-    if (!u.activo) {
-      return res.status(403).json({ error: "Usuario inactivo" });
+    // Inactivo NO entra, salvo superadmin
+    if (!u.activo && u.rol !== "superadmin") {
+      return res.status(403).json({ error: "Cuenta inactiva. Contacta al administrador." });
     }
 
-    // Verificar contraseña con bcrypt
     const ok = await bcrypt.compare(password, u.password_hash);
-    if (!ok) {
-      return res
-        .status(401)
-        .json({ error: "Usuario o contraseña incorrectos" });
-    }
+    if (!ok) return res.status(401).json({ error: "Usuario o contraseña inválidos" });
 
-    // Generar token JWT
     const token = jwt.sign(
-      { sub: u.id, username: u.username, role: u.role },
-      process.env.JWT_SECRET || "dev_key",
-      { expiresIn: `${process.env.JWT_EXP_MIN || 120}m` }
+      { id: u.id, username: u.username, rol: u.rol },
+      process.env.JWT_SECRET || "secretito",
+      { expiresIn: process.env.JWT_EXP || "8h" }
     );
 
-    // Responder al frontend
     res.json({
       token,
       user: {
         id: u.id,
-        nombre: u.nombre,
         username: u.username,
+        nombre: u.nombre,
+        apellidos: u.apellidos,
         email: u.email,
-        role: u.role,
+        rol: u.rol,
+        activo: u.activo,
       },
     });
   } catch (e) {

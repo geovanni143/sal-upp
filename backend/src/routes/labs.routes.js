@@ -1,135 +1,133 @@
 import { Router } from "express";
-import db from "../services/db.js";
-import { softDelete } from "../services/softDelete.js";
+import { pool } from "../services/db.js";           // <- tu pool mysql2/promise
+import log from "../middlewares/bitacora.js";       // si aún no lo usas, puedes quitarlo
 
 const r = Router();
 
-/** LISTAR: por defecto NO trae eliminados. Usa ?includeDeleted=1 para verlos. */
-r.get("/", async (req, res, next) => {
+/* Utilidad: trae una fila por id */
+async function getById(id){
+  const [rows] = await pool.query(
+    "SELECT id, nombre, encargado, descripcion, activo FROM labs WHERE id=?",
+    [id]
+  );
+  return rows[0] || null;
+}
+
+/* GET /api/labs  (lista + búsqueda). Soporta ?q= y ?includeDeleted= (no aplica aquí) */
+r.get("/", async (req, res) => {
   try {
     const q = (req.query.q || "").trim();
-    const includeDeleted = req.query.includeDeleted == "1";
-    const where = [];
-    const params = [];
-
-    if (!includeDeleted) { where.push("eliminado=0"); }
-    if (q) { where.push(`CONCAT_WS(' ', nombre, encargado, descripcion) LIKE ?`); params.push(`%${q}%`); }
-
-    const sql =
-      `SELECT id, nombre, encargado, descripcion, activo, eliminado, deleted_at
-         FROM laboratorios
-        ${where.length ? "WHERE " + where.join(" AND ") : ""}
-        ORDER BY nombre ASC`;
-
-    const rows = await db.query(sql, params);
+    let sql   = "SELECT id, nombre, encargado, descripcion, activo FROM labs";
+    const p   = [];
+    if (q) {
+      sql += " WHERE CONCAT_WS(' ', nombre, encargado, descripcion) LIKE ?";
+      p.push(`%${q}%`);
+    }
+    sql += " ORDER BY nombre ASC";
+    const [rows] = await pool.query(sql, p);
     res.json(rows);
-  } catch (err) { next(err); }
+  } catch (e) {
+    res.status(500).json({ error: "Error al listar labs", detail: e.message });
+  }
 });
 
-/** CREAR (siempre eliminado=0) */
-r.post("/", async (req, res, next) => {
+/* POST /api/labs */
+r.post("/", log("labs:create"), async (req, res) => {
   try {
     const { nombre, encargado = "", descripcion = "" } = req.body || {};
-    if (!nombre) return res.status(400).json({ error: "'nombre' es requerido." });
+    if (!nombre?.trim())
+      return res.status(400).json({ error: "'nombre' es requerido" });
 
-    const { insertId } = await db.exec(
-      `INSERT INTO laboratorios (nombre, encargado, descripcion, activo, eliminado, deleted_at)
-       VALUES (?,?,?,?,0,NULL)`,
-      [nombre.trim(), encargado.trim(), descripcion || "", 1]
+    const [rs] = await pool.query(
+      "INSERT INTO labs (nombre, encargado, descripcion, activo) VALUES (?,?,?,1)",
+      [nombre.trim(), encargado.trim(), descripcion || ""]
     );
-    const row = await db.queryOne(
-      `SELECT id, nombre, encargado, descripcion, activo, eliminado, deleted_at
-         FROM laboratorios WHERE id=?`, [insertId]
-    );
+
+    const row = await getById(rs.insertId);
     res.status(201).json(row);
-  } catch (err) { next(err); }
+  } catch (e) {
+    res.status(500).json({ error: "Error al crear lab", detail: e.message });
+  }
 });
 
-/** EDITAR (no toca eliminado/deleted_at) */
-r.put("/:id", async (req, res, next) => {
+/* PUT /api/labs/:id */
+r.put("/:id", log("labs:update"), async (req, res) => {
   try {
     const id = Number(req.params.id);
     const { nombre, encargado = "", descripcion = "" } = req.body || {};
-    if (!id || !nombre) return res.status(400).json({ error: "Datos inválidos." });
+    if (!id || !nombre?.trim())
+      return res.status(400).json({ error: "Datos inválidos" });
 
-    await db.exec(
-      `UPDATE laboratorios SET nombre=?, encargado=?, descripcion=? WHERE id=?`,
+    const cur = await getById(id);
+    if (!cur) return res.status(404).json({ error: "Laboratorio no encontrado" });
+
+    await pool.query(
+      "UPDATE labs SET nombre=?, encargado=?, descripcion=? WHERE id=?",
       [nombre.trim(), encargado.trim(), descripcion || "", id]
     );
-    const row = await db.queryOne(
-      `SELECT id, nombre, encargado, descripcion, activo, eliminado, deleted_at
-         FROM laboratorios WHERE id=?`, [id]
-    );
+
+    const row = await getById(id);
     res.json(row);
-  } catch (err) { next(err); }
+  } catch (e) {
+    res.status(500).json({ error: "Error al actualizar", detail: e.message });
+  }
 });
 
-/** TOGGLE ACTIVO (solo si no está eliminado) */
-r.patch("/:id/activo", async (req, res, next) => {
+/* PATCH /api/labs/:id/activo (toggle) */
+r.patch("/:id/activo", log("labs:toggle"), async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const cur = await db.queryOne(
-      `SELECT activo, eliminado FROM laboratorios WHERE id=?`, [id]
-    );
+    const cur = await getById(id);
     if (!cur) return res.status(404).json({ error: "Laboratorio no encontrado" });
-    if (cur.eliminado) return res.status(409).json({ error: "No permitido en registros eliminados" });
 
     const nuevo = cur.activo ? 0 : 1;
-    await db.exec(`UPDATE laboratorios SET activo=? WHERE id=?`, [nuevo, id]);
+    await pool.query("UPDATE labs SET activo=? WHERE id=?", [nuevo, id]);
 
-    const out = await db.queryOne(
-      `SELECT id, nombre, encargado, descripcion, activo, eliminado, deleted_at
-         FROM laboratorios WHERE id=?`, [id]
-    );
-    res.json(out);
-  } catch (err) { next(err); }
+    const row = await getById(id);
+    res.json(row);
+  } catch (e) {
+    res.status(500).json({ error: "Error al cambiar estado", detail: e.message });
+  }
 });
 
-/** SOFT DELETE (oculta del frontend) */
-r.delete("/:id", async (req, res, next) => {
+/* DELETE /api/labs/:id  (bloquea si tiene relaciones en horarios) */
+r.delete("/:id", log("labs:delete"), async (req, res) => {
   try {
     const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: "id requerido" });
 
-    // (Opcional) bloquear si tiene horarios vigentes NO eliminados:
-    // Detecta columna FK en horarios
-    const candidates = ["lab_id", "laboratorio_id", "id_laboratorio", "id_lab", "laboratorio"];
-    const cols = await db.query(
+    const cur = await getById(id);
+    if (!cur) return res.status(404).json({ error: "Laboratorio no encontrado" });
+
+    // detectar FK probable en horarios
+    const posibles = ["lab_id", "laboratorio_id", "id_laboratorio", "id_lab"];
+    const [cols] = await pool.query(
       `SELECT COLUMN_NAME FROM information_schema.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='horarios'
-          AND COLUMN_NAME IN (${candidates.map(() => "?").join(",")})`,
-      candidates
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='horarios'
+         AND COLUMN_NAME IN (${posibles.map(()=>"?").join(",")})`,
+      posibles
     );
+
     if (cols.length) {
       const fk = cols[0].COLUMN_NAME;
-      const rel = await db.queryOne(
-        `SELECT COUNT(*) AS n FROM horarios WHERE \`${fk}\`=? AND (eliminado=0 OR eliminado IS NULL)`,
+      const [[{ n }]] = await pool.query(
+        `SELECT COUNT(*) n FROM horarios WHERE \`${fk}\`=?`,
         [id]
       );
-      if (rel?.n > 0) {
+      if (n > 0) {
         return res.status(409).json({
-          error: "No se puede eliminar",
+          error: "No se puede eliminar: laboratorio con horarios vinculados",
           code: "LAB_HAS_SCHEDULES",
-          reason: `Existen ${rel.n} horarios vigentes vinculados.`
+          reason: `Existen ${n} registros en 'horarios'.`
         });
       }
     }
 
-    await softDelete("laboratorios", "id", id);
+    await pool.query("DELETE FROM labs WHERE id=?", [id]);
     res.sendStatus(204);
-  } catch (err) { next(err); }
-});
-
-/** RESTAURAR (opcional) */
-r.patch("/:id/restaurar", async (req, res, next) => {
-  try {
-    const id = Number(req.params.id);
-    await db.exec(`UPDATE laboratorios SET eliminado=0, deleted_at=NULL WHERE id=?`, [id]);
-    const row = await db.queryOne(
-      `SELECT id, nombre, encargado, descripcion, activo, eliminado, deleted_at
-         FROM laboratorios WHERE id=?`, [id]
-    );
-    res.json(row);
-  } catch (err) { next(err); }
+  } catch (e) {
+    res.status(500).json({ error: "Error al eliminar", detail: e.message });
+  }
 });
 
 export default r;
