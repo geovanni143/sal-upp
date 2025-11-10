@@ -227,18 +227,7 @@ export default function Asistencia() {
         </div>
 
         <div className="form mt">
-          <input
-            placeholder="ID Docente"
-            value={form.docente_id}
-            onChange={(e) =>
-              setForm({ ...form, docente_id: e.target.value })
-            }
-          />
-          <input
-            placeholder="ID Laboratorio"
-            value={form.lab_id}
-            onChange={(e) => setForm({ ...form, lab_id: e.target.value })}
-          />
+         
           <input
             placeholder="Código / QR"
             value={form.codigo}
