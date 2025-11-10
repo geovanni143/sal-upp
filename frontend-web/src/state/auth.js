@@ -1,27 +1,27 @@
-export function saveSession({ token, role }, { remember = true } = {}) {
-  const primary = remember ? localStorage : sessionStorage;
-  const secondary = remember ? sessionStorage : localStorage;
-  primary.setItem("token", token);
-  primary.setItem("role", role);
-  // limpia el otro storage para evitar inconsistencias
-  secondary.removeItem("token");
-  secondary.removeItem("role");
+// frontend-web/src/state/auth.js
+export function saveSession({ token, user }, { remember = false } = {}) {
+  const store = remember ? localStorage : sessionStorage;
+  store.setItem("token", token);
+  store.setItem("user", JSON.stringify(user));
 }
 
-export function getToken(){
+export function getToken() {
   return localStorage.getItem("token") || sessionStorage.getItem("token");
 }
 
-export function getRole(){
-  return localStorage.getItem("role") || sessionStorage.getItem("role");
+export function getUser() {
+  const raw = localStorage.getItem("user") || sessionStorage.getItem("user");
+  try { return raw ? JSON.parse(raw) : null; } catch { return null; }
 }
 
-export function clearSession(){
-  localStorage.removeItem("token"); localStorage.removeItem("role");
-  sessionStorage.removeItem("token"); sessionStorage.removeItem("role");
+export function getRole() {
+  const u = getUser();
+  return u?.rol || u?.role || null; // compat
 }
 
-export function logout(){
-  clearSession();
-  window.location.href = "/login";
+export function clearSession() {
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  sessionStorage.removeItem("token");
+  sessionStorage.removeItem("user");
 }

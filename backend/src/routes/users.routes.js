@@ -1,55 +1,110 @@
-import { Router } from 'express';
-import { pool } from '../db/mysql.js';
-import { emailUPP } from '../middlewares/validate.js';
-import log from '../middlewares/bitacora.js';
-import crypto from 'crypto';
+// src/routes/users.routes.js
+import { Router } from "express";
+import { pool } from "../services/db.js";
+import { requireAuth, requireRole } from "../middlewares/auth.js";
+import log from "../middlewares/bitacora.js";
+import bcrypt from "bcryptjs";
 
 const r = Router();
 
-r.get('/', async (_req,res)=>{
-  const [rows] = await pool.query('SELECT id,nombre,email,rol,activo FROM users ORDER BY nombre');
-  res.json(rows);
+/* ===== Listar ===== */
+r.get("/", requireAuth, requireRole("admin","superadmin"), async (req, res) => {
+  const [rows] = await pool.query(
+    `SELECT id,username,nombre,apellidos,email,rol,activo
+       FROM users
+      WHERE eliminado=0
+      ORDER BY FIELD(rol,'superadmin','admin','docente'), nombre`
+  );
+  res.json(rows.map(u => ({ ...u, is_me: u.id === req.user.id })));
 });
 
-r.post('/', emailUPP, log('users'), async (req,res)=>{
-  const { nombre, email, rol='docente', password=null, activo=1 } = req.body;
-  const pass_hash = password ? crypto.createHash('sha256').update(password).digest('hex') : null;
-  try{
-    const [dup] = await pool.query('SELECT id FROM users WHERE email=?',[email]);
-    if(dup.length) return res.status(409).json({error:'El email ya existe'});
-    const [rs] = await pool.execute(
-      'INSERT INTO users(nombre,email,rol,pass_hash,activo) VALUES(?,?,?,?,?)',
-      [nombre,email,rol,pass_hash,activo]
-    );
-    res.locals.entityId = rs.insertId;
-    res.status(201).json({id:rs.insertId});
-  }catch(e){ res.status(500).json({error:'Error al crear'}); }
+/* ===== Crear (admin puede crear admins; jamás superadmin) ===== */
+r.post("/", requireAuth, requireRole("admin","superadmin"), log("users"), async (req, res) => {
+  const { username, nombre, apellidos="", email, rol="docente", activo=1, password } = req.body;
+
+  if (!username || !nombre || !email || !password) {
+    return res.status(400).json({ error: "username, nombre, email y password son obligatorios" });
+  }
+  if (rol === "superadmin") {
+    return res.status(403).json({ error: "Prohibido crear superadmin" });
+  }
+
+  const hash = await bcrypt.hash(password, 10);
+  await pool.execute(
+    `INSERT INTO users (username,nombre,apellidos,email,rol,activo,password_hash)
+     VALUES (?,?,?,?,?,?,?)`,
+    [username, nombre, apellidos, email, rol, Number(activo)?1:0, hash]
+  );
+  res.status(201).json({ ok: true });
 });
 
-r.put('/:id', emailUPP, log('users'), async (req,res)=>{
+/* ===== Actualizar (admin puede editar todo menos al superadmin) ===== */
+r.put("/:id", requireAuth, requireRole("admin","superadmin"), log("users"), async (req, res) => {
   const { id } = req.params;
-  const { nombre, email, rol='docente', activo=1, password } = req.body;
-  const pass_hash = password ? crypto.createHash('sha256').update(password).digest('hex') : null;
-  const [dup] = await pool.query('SELECT id FROM users WHERE email=? AND id<>?',[email,id]);
-  if(dup.length) return res.status(409).json({error:'El email ya existe'});
+  const { username, nombre, apellidos="", email, rol, activo } = req.body;
 
-  const sql = pass_hash
-    ? 'UPDATE users SET nombre=?, email=?, rol=?, activo=?, pass_hash=? WHERE id=?'
-    : 'UPDATE users SET nombre=?, email=?, rol=?, activo=? WHERE id=?';
-  const args = pass_hash
-    ? [nombre,email,rol,activo,pass_hash,id]
-    : [nombre,email,rol,activo,id];
-  await pool.execute(sql,args);
+  if (rol === "superadmin") {
+    return res.status(403).json({ error: "No se puede asignar rol superadmin" });
+  }
 
-  res.locals.entityId = id;
-  res.json({ok:true});
+  const [[target]] = await pool.query(
+    "SELECT id,rol FROM users WHERE id=? AND eliminado=0", [id]
+  );
+  if (!target) return res.status(404).json({ error: "No encontrado" });
+
+  if (target.rol === "superadmin" && req.user.rol !== "superadmin") {
+    return res.status(403).json({ error: "No puedes editar al SUPERADMIN" });
+  }
+
+  await pool.execute(
+    `UPDATE users
+       SET username=?, nombre=?, apellidos=?, email=?, rol=?, activo=?, updated_at=NOW()
+     WHERE id=? AND eliminado=0`,
+    [username, nombre, apellidos, email, rol, Number(activo)?1:0, id]
+  );
+  res.json({ ok: true });
 });
 
-r.delete('/:id', log('users'), async (req,res)=>{
+/* ===== Toggle activo (admin NO puede activar/inactivar a admins ni superadmin) ===== */
+r.patch("/:id/activo", requireAuth, requireRole("admin","superadmin"), log("users"), async (req, res) => {
   const { id } = req.params;
-  await pool.execute('UPDATE users SET activo=0 WHERE id=?',[id]);
-  res.locals.entityId = id;
-  res.json({ok:true});
+  const [[row]] = await pool.query(
+    "SELECT id,rol,activo FROM users WHERE id=? AND eliminado=0", [id]
+  );
+  if (!row) return res.status(404).json({ error: "No encontrado" });
+
+  // superadmin protegido siempre; admin no puede tocar admins
+  if (row.rol === "superadmin" && req.user.rol !== "superadmin") {
+    return res.status(403).json({ error: "No se puede inactivar al SUPERADMIN" });
+  }
+  if (req.user.rol === "admin" && row.rol === "admin") {
+    return res.status(403).json({ error: "Un ADMIN no puede activar/inactivar a otro ADMIN" });
+  }
+
+  const nuevo = row.activo ? 0 : 1;
+  await pool.execute("UPDATE users SET activo=?, updated_at=NOW() WHERE id=?", [nuevo, id]);
+  res.json({ id: Number(id), activo: nuevo });
+});
+
+/* ===== Eliminar (admin solo puede eliminar docentes) ===== */
+r.delete("/:id", requireAuth, requireRole("admin","superadmin"), log("users"), async (req, res) => {
+  const { id } = req.params;
+  const [[row]] = await pool.query(
+    "SELECT id,rol FROM users WHERE id=? AND eliminado=0", [id]
+  );
+  if (!row) return res.status(404).json({ error: "No encontrado" });
+
+  if (row.rol === "superadmin") {
+    return res.status(403).json({ error: "No se puede eliminar al SUPERADMIN" });
+  }
+  if (req.user.rol === "admin" && row.rol !== "docente") {
+    return res.status(403).json({ error: "Un ADMIN solo puede eliminar DOCENTES" });
+  }
+
+  await pool.execute(
+    "UPDATE users SET eliminado=1, eliminado_en=NOW(), activo=0 WHERE id=?", [id]
+  );
+  res.json({ ok: true });
 });
 
 export default r;

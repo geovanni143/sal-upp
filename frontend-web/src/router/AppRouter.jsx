@@ -1,51 +1,50 @@
+// src/router/AppRouter.jsx
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 
 import App from "../App.jsx";
 import PrivateRoute from "./PrivateRoute.jsx";
 
-// Login y páginas base
+// Login / base
 import LoginDocente from "../pages/LoginDocente.jsx";
-import LoginAdmin from "../pages/LoginAdmin.jsx";
-import Forbidden from "../pages/Forbidden.jsx";
+import LoginAdmin   from "../pages/LoginAdmin.jsx";
+import Forbidden    from "../pages/Forbidden.jsx";
 
 // Menús
-import MenuDocente from "../pages/MenuDocente.jsx";
-import MenuAdmin from "../pages/MenuAdmin.jsx";
+import MenuDocente  from "../pages/MenuDocente.jsx";
+import MenuAdmin    from "../pages/MenuAdmin.jsx";
+import AdminManage  from "../pages/AdminManage.jsx";
 
-// ==================== DOCENTE ====================
-// Páginas Docente
-import Asistencia from "../pages/docente/Asistencia.jsx";
-import Historial from "../pages/docente/Historial.jsx";
-import Perfil from "../pages/docente/Perfil.jsx";
-import Incidente from "../pages/docente/Incidente.jsx";
+// Docente
+import Asistencia   from "../pages/docente/Asistencia.jsx";
+import HistorialDoc from "../pages/docente/Historial.jsx";
+import PerfilDoc    from "../pages/docente/Perfil.jsx";
+import IncidenteDoc from "../pages/docente/Incidente.jsx";
 
-
-// ==================== ADMIN =====================
-import UsersPage from "../pages/UsersPage.jsx";
-import LabsPage from "../pages/LabsPage.jsx";
+// Admin (Sprint 2)
+import UsersPage    from "../pages/UsersPage.jsx";
+import LabsPage     from "../pages/LabsPage.jsx";
+import PeriodosPage from "../pages/PeriodosPage.jsx";
 import HorariosPage from "../pages/HorariosPage.jsx";
 
+// Admin nuevas páginas (UI lista)
+import IncidentesPage from "../pages/IncidentesPage.jsx";
+import HistorialPage  from "../pages/HistorialPage.jsx";
+import ConfigPage     from "../pages/ConfigPage.jsx";
+import PerfilPage     from "../pages/PerfilPage.jsx";
+
 // Extras
-import Dashboard from "../pages/Dashboard.jsx";
-import ReportarIncidencias from "../pages/ReportarIncidencias.jsx";
+import Dashboard            from "../pages/Dashboard.jsx";
+import ReportarIncidencias  from "../pages/ReportarIncidencias.jsx";
 
 import { getToken, getRole } from "../state/auth";
 import { redirectByRole } from "../utils/redirectByRole";
-
-// Placeholder simple (solo se usa en admin o 404)
-const WIP = ({ title }) => (
-  <div style={{ padding: 16 }}>
-    <h2>{title}</h2>
-    <p>En construcción…</p>
-  </div>
-);
 
 function HomeRedirect() {
   const nav = useNavigate();
   useEffect(() => {
     const token = getToken();
-    const role = getRole();
+    const role  = getRole();
     if (!token) return nav("/login", { replace: true });
     nav(redirectByRole(role), { replace: true });
   }, [nav]);
@@ -56,51 +55,55 @@ export default function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Layout base */}
+        {/* Layout base con Outlet */}
         <Route path="/" element={<App />}>
-          {/* Raíz -> redirige según rol */}
-          <Route index element={<HomeRedirect />} />
+          {/* 1) Por defecto SIEMPRE mostrar Login Docente */}
+          <Route index element={<Navigate to="/login" replace />} />
 
-          {/* Login */}
-          <Route path="login" element={<LoginDocente />} />
-          <Route path="login-admin" element={<LoginAdmin />} />
+          {/* (Opcional) Punto de entrada que decide por rol si ya hay sesión */}
+          <Route path="home" element={<HomeRedirect />} />
+
+          {/* Logins */}
+          <Route path="login"       element={<LoginDocente />} />
+          <Route path="login-admin" element={<LoginAdmin   />} />
 
           {/* Acceso denegado */}
           <Route path="403" element={<Forbidden />} />
 
-          {/* Opcionales / legacy */}
+          {/* Extras (protege Dashboard si no hay token) */}
           <Route
             path="dashboard"
             element={getToken() ? <Dashboard /> : <Navigate to="/login" replace />}
           />
           <Route path="reportar-incidencia" element={<ReportarIncidencias />} />
 
-          {/* ================= DOCENTE ================= */}
-          <Route element={<PrivateRoute allow={["docente", "superadmin", "admin_lab"]} />}>
-            <Route path="docente" element={<MenuDocente />} />
-            <Route path="docente/asistencia" element={<Asistencia />} />
-            <Route path="docente/historial" element={<Historial />} />
-            <Route path="docente/perfil" element={<Perfil />} />
-            <Route path="docente/incidente" element={<Incidente />} />
+          {/* ===== DOCENTE ===== */}
+          <Route element={<PrivateRoute allow={["docente", "admin", "admin_lab", "superadmin"]} />}>
+            <Route path="docente"             element={<MenuDocente />} />
+            <Route path="docente/asistencia"  element={<Asistencia  />} />
+            <Route path="docente/historial"   element={<HistorialDoc/>} />
+            <Route path="docente/perfil"      element={<PerfilDoc   />} />
+            <Route path="docente/incidente"   element={<IncidenteDoc/>} />
           </Route>
 
-          {/* ================= ADMIN ================= */}
-          <Route element={<PrivateRoute allow={["superadmin", "admin_lab", "admin"]} />}>
-            <Route path="admin" element={<MenuAdmin />} />
-            {/* Gestionar */}
-            <Route path="admin/users" element={<UsersPage />} />
-            <Route path="admin/labs" element={<LabsPage />} />
-            <Route path="admin/horarios" element={<HorariosPage />} />
-            {/* Otros */}
-            <Route path="admin/incidentes" element={<WIP title="Incidentes de Laboratorio" />} />
-            <Route path="admin/historial" element={<WIP title="Historial general / Reportes" />} />
-            <Route path="admin/config" element={<WIP title="Configurar" />} />
-            <Route path="admin/perfil" element={<WIP title="Perfil administrador" />} />
+          {/* ===== ADMIN ===== */}
+          <Route element={<PrivateRoute allow={["admin", "admin_lab", "superadmin"]} />}>
+            <Route path="admin"            element={<MenuAdmin   />} />
+            <Route path="admin/gestionar"  element={<AdminManage />} />
+            <Route path="admin/users"      element={<UsersPage   />} />
+            <Route path="admin/labs"       element={<LabsPage    />} />
+            <Route path="admin/periodos"   element={<PeriodosPage/>} />
+            <Route path="admin/horarios"   element={<HorariosPage/>} />
+            {/* Reemplazo de WIP por páginas reales */}
+            <Route path="admin/incidentes" element={<IncidentesPage />} />
+            <Route path="admin/historial"  element={<HistorialPage  />} />
+            <Route path="admin/config"     element={<ConfigPage     />} />
+            <Route path="admin/perfil"     element={<PerfilPage     />} />
           </Route>
         </Route>
 
         {/* 404 */}
-        <Route path="*" element={<WIP title="404 — No encontrado" />} />
+        <Route path="*" element={<div style={{padding:16}}><h2>404 — No encontrado</h2></div>} />
       </Routes>
     </BrowserRouter>
   );

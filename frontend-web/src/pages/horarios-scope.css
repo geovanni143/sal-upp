@@ -1,0 +1,84 @@
+/* ===== Scope para no romper otras pantallas ===== */
+.hs-page .hs__card{
+  width:100%;
+  max-width: min(1600px, 96vw);     /* se expande en desktop */
+  margin-inline:auto;
+  padding:16px 18px;
+  border-radius:22px;
+}
+
+/* Head */
+.hs-page .hs__brand{ text-align:center; font-weight:900; font-size:22px; margin:6px 0 2px; }
+.hs-page .hs__sub{ text-align:center; font-size:12px; color:#6B7280; margin-bottom:12px; }
+
+/* Filtros */
+.hs-page .hs__filters{
+  display:grid; grid-template-columns: 1fr 1fr auto; gap:10px; align-items:center; margin-bottom:10px;
+}
+.hs-page .hs__actions{ display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+
+/* En desktop grande se abre más */
+@media (min-width: 1366px){
+  .hs-page .hs__card{ max-width: min(1800px, 98vw); }
+}
+
+/* Grid: siempre tabla; contenedor con scroll horizontal en pantallas chicas */
+.hs-page .hs__wrap{
+  overflow-x:auto; overflow-y:hidden;
+  border:1px solid #E5E7EB; border-radius:14px; background:#FFF;
+}
+
+/* Tabla */
+.hs-page .hs__grid{
+  border-collapse:separate; border-spacing:0;
+  min-width: 980px;                /* ancho mínimo para no amontonar */
+  width: 100%;                     /* llena el contenedor */
+  table-layout: fixed;
+}
+.hs-page .hs__grid thead th{
+  position:sticky; top:0; z-index:1;
+  background:#F3F4F6; font-weight:700; font-size:13px;
+  padding:10px 8px; border-bottom:1px solid #E5E7EB;
+}
+.hs-page .hs__grid td{
+  border-top:1px solid #F1F5F9;
+  padding:0; height:44px; text-align:center;
+}
+.hs-page .hs__time{
+  background:#F8FAFC; font-variant-numeric: tabular-nums;
+  color:#334155; font-size:12px; width:96px; padding:0 8px;
+}
+.hs-page .hs__cell{ position:relative; }
+
+/* Bloques */
+.hs-page .hs__block{
+  position:absolute; inset:4px;
+  border:1px solid #C7D2FE; background:#EEF2FF;
+  border-radius:10px; padding:6px 8px; text-align:left; overflow:hidden;
+  display:grid; gap:2px;
+}
+.hs-page .hs__btitle{ font-weight:700; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.hs-page .hs__bmeta{ font-size:11px; color:#475569; }
+.hs-page .hs__mini{
+  position:absolute; top:4px; right:4px;
+  border:0; border-radius:8px; padding:0 6px; height:20px;
+  background:#ef4444; color:#fff; cursor:pointer; line-height:20px;
+}
+
+/* Mensajes */
+.hs-page .hs__muted{ font-size:12px; color:#637083; text-align:center; margin:10px 0; }
+
+/* —— Importante: desactivar por completo el modo "cards" —— */
+.hs-page .hs__cards{ display:none !important; }
+
+/* Inputs heredan tu estilo de login */
+.hs-page .input{
+  height:40px; border-radius:12px; background:#EEF2F7;
+  border:2px solid transparent; padding:0 12px; outline:none;
+}
+.hs-page .input:focus{ border-color:#3E0E6A; box-shadow:0 0 0 4px rgba(62,14,106,.12); background:#F6F8FB; }
+
+/* Botones (heredados) */
+.hs-page .btn{ height:40px; border-radius:10px; padding:0 12px; font-weight:700; }
+.hs-page .btn.ghost{ background:#fff; border:1px solid #E5E7EB; }
+.hs-page .btn.ghost:hover{ background:#F7F7FA; }
