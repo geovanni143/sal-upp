@@ -33,7 +33,7 @@ export default function MenuDocente(){
         <button className="big-action" onClick={()=>nav("/docente/asistencia")}>
           Escanear QR
         </button>
-        <Link className="link-code" to="/docente/asistencia?modo=codigo">
+        <Link className="link-code" to="/docente/codigo">
           Ingresar con Código
         </Link>
 

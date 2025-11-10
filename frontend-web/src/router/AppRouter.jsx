@@ -81,6 +81,7 @@ export default function AppRouter() {
           <Route element={<PrivateRoute allow={["docente", "admin", "admin_lab", "superadmin"]} />}>
             <Route path="docente"             element={<MenuDocente />} />
             <Route path="docente/asistencia"  element={<Asistencia  />} />
+            <Route path="docente/codigo"      element={<Codigo      />} />
             <Route path="docente/historial"   element={<HistorialDoc/>} />
             <Route path="docente/perfil"      element={<PerfilDoc   />} />
             <Route path="docente/incidente"   element={<IncidenteDoc/>} />

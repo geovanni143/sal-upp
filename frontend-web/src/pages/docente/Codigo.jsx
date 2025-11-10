@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import "./docente.css";
 
-export default function Asistencia() {
+export default function Codigo() {
   const firmaRef = useRef(null);
   const [form, setForm] = useState({
     docente_id: "",
@@ -21,8 +21,8 @@ export default function Asistencia() {
     const c = firmaRef.current;
     const ctx = c.getContext("2d");
     const rect = c.getBoundingClientRect();
-    const x = e.clientX - rect.left,
-      y = e.clientY - rect.top;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
     ctx.lineWidth = 2;
     ctx.lineCap = "round";
     ctx.strokeStyle = "#111";
@@ -36,8 +36,8 @@ export default function Asistencia() {
       const firmaData = firmaRef.current.toDataURL("image/png");
 
       const toFile = (dataUrl, name) => {
-        const arr = dataUrl.split(","),
-          mime = arr[0].match(/:(.*?);/)[1];
+        const arr = dataUrl.split(",");
+        const mime = arr[0].match(/:(.*?);/)[1];
         const bstr = atob(arr[1]);
         let n = bstr.length;
         const u8 = new Uint8Array(n);
@@ -55,8 +55,8 @@ export default function Asistencia() {
         method: "POST",
         body: fd,
       });
-
       const data = await r.json();
+
       setMsg(`${data.mensaje || "Registro enviado"} (${data.estado || "OK"})`);
     } catch (e) {
       setMsg(e.message);
@@ -68,10 +68,10 @@ export default function Asistencia() {
       <div className="menu-card asistencia-card">
         <div className="menu-head">
           <div className="brand">SAL-UPP</div>
-          <div className="menu-sub">Docente</div>
+          <div className="menu-sub">Modo Manual</div>
         </div>
 
-        <h2 className="center-title">Registro de Asistencia</h2>
+        <h2 className="center-title">Registro Manual de Asistencia</h2>
 
         {msg && (
           <p
@@ -107,9 +107,7 @@ export default function Asistencia() {
           <input
             placeholder="ID Docente"
             value={form.docente_id}
-            onChange={(e) =>
-              setForm({ ...form, docente_id: e.target.value })
-            }
+            onChange={(e) => setForm({ ...form, docente_id: e.target.value })}
           />
           <input
             placeholder="ID Laboratorio"
@@ -117,7 +115,7 @@ export default function Asistencia() {
             onChange={(e) => setForm({ ...form, lab_id: e.target.value })}
           />
           <input
-            placeholder="Código / QR (escríbelo manualmente)"
+            placeholder="Código / QR (ingrésalo manualmente)"
             value={form.codigo}
             onChange={(e) => setForm({ ...form, codigo: e.target.value })}
           />
