@@ -31,11 +31,11 @@ export default function PerfilPage() {
           <h4 className="profile-section">Contraseña</h4>
           <div className="grid-2" style={{ marginTop: 8 }}>
             <button className="btn-save" onClick={() => alert("Cambiar datos (pendiente backend)")}>Cambiar datos</button>
-            <button className="btn-save" onClick={() => alert("Crear nuevo admin (pendiente backend)")}>Crear Nuevo Admin</button>
+        
           </div>
 
           <div className="profile-check">
-            <input type="checkbox" disabled checked /> <span>Activo</span>
+        
           </div>
         </div>
       </div>

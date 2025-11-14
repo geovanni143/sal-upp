@@ -2,14 +2,16 @@
 
 html, body, #root{ height:100%; }
 
+/* .page-shell unificada (antes había 2) */
 .page-shell{
-  position:fixed; inset:0;
-  width:100vw; min-height:100dvh;
+  position:fixed;
+  inset:0;
+  width:100vw;
+  min-height:100dvh;
   background:var(--bg);
-  display:flex;                          /* centrado robusto */
-  justify-content:center;
-  align-items:flex-start;
-  padding:32px 16px;
+  display:grid;
+  place-items:start center;
+  padding:clamp(16px,4vw,40px) clamp(12px,3vw,24px);
   overflow:auto;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -17,7 +19,8 @@ html, body, #root{ height:100%; }
 }
 
 .page-shell .menu-card{
-  width:100%; max-width:560px;
+  width:100%;
+  max-width:560px;
   background:var(--card);
   border-radius:26px;
   padding:22px;
@@ -87,32 +90,70 @@ html, body, #root{ height:100%; }
   background:#eef2f7; color:#475569; border-radius:12px; padding:10px 12px;
 }
 
-.card-item{ display:flex; align-items:center; justify-content:space-between;
-  background:var(--surface); border-radius:18px; padding:14px 16px; box-shadow:var(--shadow); }
+/* Tarjetas genéricas (catálogos) */
+.card-item{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  background:var(--surface);
+  border-radius:18px;
+  padding:14px 16px;
+  box-shadow:var(--shadow);
+}
 .ci-title{ font-weight:700; color:#333; }
 .ci-sub{ color:var(--muted); font-size:13px; margin-top:2px; white-space:pre-line; }
 .ci-right{ display:flex; gap:10px; align-items:center; }
-.pill{ height:24px; padding:0 10px; border-radius:12px; background:var(--primary); color:#fff; border:0; font-size:12px; font-weight:700; cursor:pointer; }
+
+.pill{
+  height:24px;
+  padding:0 10px;
+  border-radius:12px;
+  background:var(--primary);
+  color:#fff;
+  border:0;
+  font-size:12px;
+  font-weight:700;
+  cursor:pointer;
+}
 .icon{ border:0; background:transparent; font-size:18px; cursor:pointer; }
-.btn-primary{ background:var(--primary); color:#fff; padding:14px 18px; border-radius:20px; border:0; font-weight:700; width:100%; }
+
+.btn-primary{
+  background:var(--primary);
+  color:#fff;
+  padding:14px 18px;
+  border-radius:20px;
+  border:0;
+  font-weight:700;
+  width:100%;
+}
 .btn-primary:hover{ background:var(--primary-900); box-shadow:0 6px 18px rgba(62,14,106,.25); }
+
 .grid-gestionar{ display:grid; gap:26px; padding:24px; }
-.badge{ display:inline-flex; align-items:center; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:700; }
+
+/* Badges genéricos */
+.badge{
+  display:inline-flex;
+  align-items:center;
+  padding:2px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:700;
+}
 .badge.green{ background:#A7F3D0; color:#065F46; }
 .badge.red{ background:#F87171; color:#fff; }
 .badge.amber{ background:#FDE68A; color:#713F12; }
 .badge.purple{ background:#4C1D95; color:#fff; }
+
 .form-card{ background:#fff; border-radius:26px; padding:18px; box-shadow:var(--shadow); }
 .form-row{ display:grid; gap:8px; margin-bottom:12px; }
-.form-row input, .form-row select, .form-row textarea{ background:#E7EEF7; border:0; border-radius:12px; padding:12px 14px; outline:0; }
+.form-row input, .form-row select, .form-row textarea{
+  background:#E7EEF7;
+  border:0;
+  border-radius:12px;
+  padding:12px 14px;
+  outline:0;
+}
 .action-row{ display:flex; gap:14px; }
-
-
-
-
-
-
-
 
 /* ---- AdminManage (compacto y elegante) ---- */
 .menu-card.manage-narrow{
@@ -125,13 +166,13 @@ html, body, #root{ height:100%; }
 .manage-list{
   display: flex;
   flex-direction: column;
-  gap: 12px;              /* Separación moderada */
+  gap: 12px;
   margin-top: 8px;
 }
 
 /* Botón compacto */
 .manage-item{
-  height: 52px;           /* Más pequeño */
+  height: 52px;
   width: 100%;
   border: 0;
   border-radius: 14px;
@@ -174,15 +215,7 @@ html, body, #root{ height:100%; }
   .manage-item{ height: 56px; font-size: 17px; }
 }
 
-
-
-
-
-
-
-
-
-
+/* ====== Vista tipo “smooth-card” (algunos catálogos) ====== */
 
 .smooth-card {
   border-radius: 22px;
@@ -191,6 +224,7 @@ html, body, #root{ height:100%; }
   padding: 20px;
 }
 
+/* top-header unificado, usa colores del tema pero conserva margin-bottom */
 .top-header {
   display: flex;
   align-items: center;
@@ -204,27 +238,32 @@ html, body, #root{ height:100%; }
   color: #1e1e1e;
 }
 
+/* btn-back unificado (nuevo estilo pero mismo comportamiento) */
 .btn-back {
-  background: #3E0E6A;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 4px 12px;
+  background:#EEE9F5;
+  color:#2B0A4A;
+  border:1px solid rgba(62,14,106,.15);
+  border-radius:10px;
+  padding:6px 10px;
   font-size: 0.9rem;
   cursor: pointer;
 }
+.btn-back:hover{ background:#E8E1F2; }
 
 .list-container {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: 12px;          /* valor más nuevo */
+  margin-top: 8px;
+  margin-bottom: 16px;/* conserva separación inferior anterior */
 }
 
+/* list-item unificado: layout flex + nuevo fondo/borde */
 .list-item {
-  background: #E7E5EB;
-  border-radius: 14px;
-  padding: 12px;
+  background:#F4F1FA;
+  border:1px solid rgba(62,14,106,.10);
+  border-radius:16px;
+  padding:12px 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -243,45 +282,41 @@ html, body, #root{ height:100%; }
   color: #333;
 }
 
+/* Acciones en tarjetas (unificado) */
 .item-actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
 }
 
+/* Botones */
 .btn-edit {
-  background: #3E0E6A;
+  background: var(--primary);
   color: white;
   border: none;
-  border-radius: 6px;
-  padding: 4px 10px;
+  border-radius: 10px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-edit:hover{ background:var(--primary-900); }
+
+.btn-delete {
+  background:#FDECEC;
+  color:#991B1B;
+  border:1px solid rgba(239,68,68,.25);
+  border-radius: 10px;
+  padding: 6px 10px;
   font-size: 0.85rem;
   cursor: pointer;
 }
+.btn-delete:hover{ background:#FBDADA; }
+.btn-delete[disabled]{ opacity:.5; cursor:not-allowed; }
 
-.btn-delete {
-  background: #fff;
-  border: 1px solid #3E0E6A;
-  color: #3E0E6A;
-  border-radius: 6px;
-  padding: 4px 8px;
-  cursor: pointer;
-}
-
-.form-box {
-  background: #f5f3f7;
-  border-radius: 14px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.form-box h2 {
-  margin-bottom: 4px;
-  font-size: 1.1rem;
-  color: #2B094A;
-}
-
+/* Formulario “suave” antiguo: ahora se controla por form-box del tema,
+   pero mantenemos inputs base globales */
 input, select {
   border: 1px solid #c3bcd0;
   border-radius: 8px;
@@ -289,62 +324,21 @@ input, select {
   font-size: 0.9rem;
 }
 
+/* Grid simple (reutilizable) */
 .grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 
+/* Botones en fila (antiguo) se mantiene como alias general */
 .btn-row {
   display: flex;
   justify-content: space-between;
   margin-top: 10px;
 }
 
-.btn-save {
-  background: #3E0E6A;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 8px 16px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.btn-cancel {
-  background: white;
-  color: #3E0E6A;
-  border: 1px solid #3E0E6A;
-  border-radius: 8px;
-  padding: 8px 16px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* ===== Paleta original UPP + responsivo ===== */
+/* ===== Paleta original UPP + responsivo (tema principal) ===== */
 :root{
   --bg:#D2D6DE;
   --card:#FFFFFF;
@@ -360,14 +354,7 @@ input, select {
   --shadow:0 8px 30px rgba(0,0,0,.08);
 }
 
-.page-shell{
-  min-height:100dvh;
-  background:var(--bg);
-  display:grid; place-items:start center;
-  padding:clamp(16px,4vw,40px) clamp(12px,3vw,24px);
-  overflow:auto;
-}
-
+/* .menu-card general (fuera de page-shell) */
 .menu-card{
   width:min(92vw, 900px);
   background:var(--card);
@@ -376,78 +363,105 @@ input, select {
   padding: clamp(14px, 2.4vw, 22px);
 }
 
-.top-header{ display:flex; align-items:center; gap:12px; }
-.btn-back{ background:#EEE9F5; color:#2B0A4A; border:1px solid rgba(62,14,106,.15); padding:6px 10px; border-radius:10px; }
-.btn-back:hover{ background:#E8E1F2; }
-
-/* Lista */
-.list-container{ display:flex; flex-direction:column; gap:12px; margin-top:8px; }
-.list-item{
-  background:#F4F1FA;
-  border:1px solid rgba(62,14,106,.10);
-  border-radius:16px;
-  padding:12px 16px;
-}
+/* Listas con título/secundario */
 .title-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .sub-row .muted{ color:var(--muted); font-size:.92rem; }
 
-/* Badges estado */
+/* Badges estado refinados */
 .badge{
-  padding:3px 10px; border-radius:999px;
-  font-size:.78rem; font-weight:600; background:#EEF2FF; color:#334155;
+  padding:3px 10px;
+  border-radius:999px;
+  font-size:.78rem;
+  font-weight:600;
+  background:#EEF2FF;
+  color:#334155;
 }
 .badge.ok{ background:#EAF9F0; color:#166534; }
 .badge.warn{ background:#FEF7E7; color:#92400E; }
 
 /* Pill de rol */
 .pill{
-  padding:2px 8px; border-radius:999px; font-size:.75rem; font-weight:700;
-  background:#EEE9F5; color:#2B0A4A; border:1px solid rgba(62,14,106,.15);
+  padding:2px 8px;
+  border-radius:999px;
+  font-size:.75rem;
+  font-weight:700;
+  background:#EEE9F5;
+  color:#2B0A4A;
+  border:1px solid rgba(62,14,106,.15);
 }
 .pill.admin{ text-transform:uppercase; }
 .pill.superadmin{ text-transform:uppercase; background:#E8E1F2; }
 
-/* Botones de acciones */
-.item-actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
-
-.btn-edit{ background:var(--primary); color:#fff; border:none; padding:6px 12px; border-radius:10px; font-weight:600; }
-.btn-edit:hover{ background:var(--primary-900); }
-
+/* Botones secundarios/ghost */
 .btn-ghost{
-  background:#EEE9F5; color:#2B0A4A; border:1px solid rgba(62,14,106,.15);
-  padding:6px 12px; border-radius:10px; font-weight:600;
+  background:#EEE9F5;
+  color:#2B0A4A;
+  border:1px solid rgba(62,14,106,.15);
+  padding:6px 12px;
+  border-radius:10px;
+  font-weight:600;
 }
 .btn-ghost:hover{ background:#E8E1F2; }
 .btn-ghost[disabled]{ opacity:.5; cursor:not-allowed; }
 
-.btn-delete{
-  background:#FDECEC; color:#991B1B; border:1px solid rgba(239,68,68,.25);
-  padding:6px 10px; border-radius:10px; font-weight:700;
-}
-.btn-delete:hover{ background:#FBDADA; }
-.btn-delete[disabled]{ opacity:.5; cursor:not-allowed; }
-
-/* Formulario */
+/* Formulario principal de catálogos (unificado) */
 .form-box{
-  background:#F6F2FB; border:1px solid rgba(62,14,106,.10);
-  border-radius:16px; padding:16px; margin-top:12px;
-  display:grid; grid-template-columns:1fr 1fr; gap:12px 16px;
+  background:#F6F2FB;
+  border:1px solid rgba(62,14,106,.10);
+  border-radius:16px;
+  padding:16px;
+  margin-top:12px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px 16px;
 }
-.form-box h2{ grid-column:1 / -1; text-align:center; margin:4px 0 8px; }
+.form-box h2{
+  grid-column:1 / -1;
+  text-align:center;
+  margin:4px 0 8px;
+}
 
-.form-box input, .form-box select{
-  width:100%; padding:10px 12px; border-radius:12px;
-  border:1px solid #E6E7EB; background:#FAFAFB; outline:none;
+.form-box input,
+.form-box select{
+  width:100%;
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid #E6E7EB;
+  background:#FAFAFB;
+  outline:none;
 }
-.form-box input:focus, .form-box select:focus{
-  border-color:var(--primary); box-shadow:0 0 0 3px var(--ring); background:#fff;
+.form-box input:focus,
+.form-box select:focus{
+  border-color:var(--primary);
+  box-shadow:0 0 0 3px var(--ring);
+  background:#fff;
 }
 
-/* filas */
-.btn-row{ grid-column:1 / -1; display:flex; gap:10px; justify-content:space-between; }
-.btn-cancel{ background:#EEE9F5; color:#2B0A4A; border:1px solid rgba(62,14,106,.15); padding:8px 14px; border-radius:12px; font-weight:700; }
+/* Botones dentro del formulario */
+.btn-row{
+  grid-column:1 / -1;
+  display:flex;
+  gap:10px;
+  justify-content:space-between;
+}
+.btn-cancel{
+  background:#EEE9F5;
+  color:#2B0A4A;
+  border:1px solid rgba(62,14,106,.15);
+  padding:8px 14px;
+  border-radius:12px;
+  font-weight:700;
+}
 .btn-cancel:hover{ background:#E8E1F2; }
-.btn-save{ background:var(--primary); color:#fff; border:none; padding:8px 14px; border-radius:12px; font-weight:700; }
+
+.btn-save{
+  background:var(--primary);
+  color:#fff;
+  border:none;
+  padding:8px 14px;
+  border-radius:12px;
+  font-weight:700;
+}
 .btn-save:hover{ background:var(--primary-900); }
 
 /* Responsivo */
@@ -455,31 +469,6 @@ input, select {
   .form-box{ grid-template-columns:1fr; }
   .btn-row{ flex-direction:column; }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /* Pill para el usuario actual */
 .pill.me{

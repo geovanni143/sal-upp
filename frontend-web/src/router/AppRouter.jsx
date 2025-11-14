@@ -20,6 +20,7 @@ import Asistencia   from "../pages/docente/Asistencia.jsx";
 import HistorialDoc from "../pages/docente/Historial.jsx";
 import PerfilDoc    from "../pages/docente/Perfil.jsx";
 import IncidenteDoc from "../pages/docente/Incidente.jsx";
+import Codigo       from "../pages/docente/Codigo.jsx"; // <-- FALTABA
 
 // Admin (Sprint 2)
 import UsersPage    from "../pages/UsersPage.jsx";
@@ -55,12 +56,11 @@ export default function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Layout base con Outlet */}
         <Route path="/" element={<App />}>
-          {/* 1) Por defecto SIEMPRE mostrar Login Docente */}
+          {/* Por defecto mostrar Login Docente */}
           <Route index element={<Navigate to="/login" replace />} />
 
-          {/* (Opcional) Punto de entrada que decide por rol si ya hay sesión */}
+          {/* Punto de entrada por rol */}
           <Route path="home" element={<HomeRedirect />} />
 
           {/* Logins */}
@@ -70,7 +70,7 @@ export default function AppRouter() {
           {/* Acceso denegado */}
           <Route path="403" element={<Forbidden />} />
 
-          {/* Extras (protege Dashboard si no hay token) */}
+          {/* Extras (Dashboard protegido por token) */}
           <Route
             path="dashboard"
             element={getToken() ? <Dashboard /> : <Navigate to="/login" replace />}
@@ -81,7 +81,7 @@ export default function AppRouter() {
           <Route element={<PrivateRoute allow={["docente", "admin", "admin_lab", "superadmin"]} />}>
             <Route path="docente"             element={<MenuDocente />} />
             <Route path="docente/asistencia"  element={<Asistencia  />} />
-            <Route path="docente/codigo"      element={<Codigo      />} />
+            <Route path="docente/codigo"      element={<Codigo      />} /> {/* ahora sí existe */}
             <Route path="docente/historial"   element={<HistorialDoc/>} />
             <Route path="docente/perfil"      element={<PerfilDoc   />} />
             <Route path="docente/incidente"   element={<IncidenteDoc/>} />
@@ -95,7 +95,6 @@ export default function AppRouter() {
             <Route path="admin/labs"       element={<LabsPage    />} />
             <Route path="admin/periodos"   element={<PeriodosPage/>} />
             <Route path="admin/horarios"   element={<HorariosPage/>} />
-            {/* Reemplazo de WIP por páginas reales */}
             <Route path="admin/incidentes" element={<IncidentesPage />} />
             <Route path="admin/historial"  element={<HistorialPage  />} />
             <Route path="admin/config"     element={<ConfigPage     />} />
