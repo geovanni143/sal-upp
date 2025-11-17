@@ -23,6 +23,11 @@ const horasMedias = (() => {
   return out;
 })();
 
+const toMin = (s) => {
+  const [H, M] = s.split(":").map(Number);
+  return H * 60 + M;
+};
+
 function colorFor(key) {
   const palettes = [
     { bg: "#FEF3F2", bd: "#F97373" },
@@ -43,7 +48,6 @@ function colorFor(key) {
 const tituloBloque = (b) =>
   [b.materia, b.codigo].filter(Boolean).join(" — ");
 
-// ya NO mostramos horas dentro del bloque, solo grupo
 const metaGrupo = (b) =>
   [b.grupo ? `Grupo: ${b.grupo}` : null].filter(Boolean).join(" · ");
 
@@ -71,16 +75,18 @@ export default function HorariosPage() {
   const [periodoId, setPeriodoId] = useState("");
   const [labId, setLabId] = useState("");
 
-  // Horario actual en edición (bloques)
-  const [plan, setPlan] = useState([]);
+  const [plan, setPlan] = useState([]); // bloques
 
-  // Catálogo de horarios guardados
   const [catalogo, setCatalogo] = useState([]);
   const [catSearch, setCatSearch] = useState("");
   const [catShowDeleted, setCatShowDeleted] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+
+  // clave del horario actualmente en edición (cuando entras con "Ver / editar")
+  const [currentKey, setCurrentKey] = useState(null);
+  // { periodo_id, lab_id }  ó null si es un horario nuevo
 
   /* ==========================
      Cargar catálogos base
@@ -119,13 +125,18 @@ export default function HorariosPage() {
   }, []);
 
   /* ==========================
-     Catálogo de horarios (lista de arriba)
+     Catálogo de horarios
      ========================== */
-  const cargarCatalogo = async () => {
+  const cargarCatalogo = async (overrideDeleted) => {
     try {
+      const showDeleted =
+        typeof overrideDeleted === "boolean"
+          ? overrideDeleted
+          : catShowDeleted;
+
       const { data } = await horariosApi.catalogo({
         search: catSearch || undefined,
-        mostrar_eliminados: catShowDeleted ? 1 : 0,
+        mostrar_eliminados: showDeleted ? 1 : 0,
       });
 
       const raw =
@@ -140,7 +151,7 @@ export default function HorariosPage() {
       const norm = raw.map((it) => ({
         ...it,
         bloques_activos: Number(it.bloques ?? it.bloques_activos ?? 0),
-        horario_eliminado: Number(it.eliminado ?? 0) === 1,
+        horario_eliminado: Number(it.horario_eliminado ?? 0),
         activo: Number(it.activo ?? 0),
         en_curso: Boolean(it.en_curso),
       }));
@@ -172,7 +183,8 @@ export default function HorariosPage() {
     const lid = String(item.lab_id);
     setPeriodoId(pid);
     setLabId(lid);
-    await cargarSemana(pid, lid); // baja bloques del backend y llena la tabla
+    setCurrentKey({ periodo_id: pid, lab_id: lid }); // <- EDITANDO ESTE HORARIO
+    await cargarSemana(pid, lid); // llena la tabla
   };
 
   const toggleActivo = async (item) => {
@@ -195,43 +207,78 @@ export default function HorariosPage() {
     }
   };
 
+  // === NUEVA VERSIÓN MEJORADA ===
   const eliminarHorario = async (item) => {
-    // Regla: mientras el periodo esté en curso NO se puede borrar el horario completo
-    if (item.en_curso) {
+    // no permitir borrar lógicamente un horario en curso
+    if (item.en_curso && !catShowDeleted) {
       alert(
         "No puedes eliminar un horario cuyo periodo está en curso. Solo puedes editar sus bloques."
       );
       return;
     }
 
-    if (
-      !confirm(
-        "¿Eliminar TODO el horario de este laboratorio en ese período? (se puede restaurar después)"
-      )
-    )
-      return;
+    const msgConfirm = catShowDeleted
+      ? "¿Eliminar PERMANENTEMENTE este horario? (no se podrá recuperar)"
+      : "¿Eliminar TODO el horario de este laboratorio en ese período? (se puede restaurar después)";
+
+    if (!confirm(msgConfirm)) return;
 
     try {
-      const { data } = await horariosApi.eliminar({
-        periodo_id: item.periodo_id,
-        lab_id: item.lab_id,
-      });
+      let data;
+
+      if (catShowDeleted) {
+        // eliminación permanente (hard delete)
+        ({ data } = await horariosApi.eliminarHard({
+          periodo_id: item.periodo_id,
+          lab_id: item.lab_id,
+        }));
+      } else {
+        // eliminación lógica (se puede restaurar)
+        ({ data } = await horariosApi.eliminar({
+          periodo_id: item.periodo_id,
+          lab_id: item.lab_id,
+        }));
+      }
 
       if (!data?.ok) {
-        alert(data.msg || "No se pudo eliminar el horario");
+        alert(
+          data.msg ||
+            (catShowDeleted
+              ? "No se pudo eliminar permanentemente el horario"
+              : "No se pudo eliminar el horario")
+        );
         return;
       }
 
+      // si justo es el seleccionado, limpiamos grilla
       if (
         String(periodoId) === String(item.periodo_id) &&
         String(labId) === String(item.lab_id)
       ) {
         setPlan([]);
+        setCurrentKey(null);
       }
-      await cargarCatalogo();
+
+      // mensaje que manda el backend
+      if (data.msg) {
+        alert(data.msg);
+      } else {
+        alert(
+          catShowDeleted
+            ? "Horario eliminado permanentemente"
+            : "Horario eliminado"
+        );
+      }
     } catch (e) {
       console.error(e);
-      alert("No se pudo eliminar el horario");
+      alert(
+        catShowDeleted
+          ? "No se pudo eliminar permanentemente el horario"
+          : "No se pudo eliminar el horario"
+      );
+    } finally {
+      // SIEMPRE recargo el catálogo para que no se quede bug visual
+      await cargarCatalogo(catShowDeleted);
     }
   };
 
@@ -247,8 +294,10 @@ export default function HorariosPage() {
         return;
       }
 
-      await cargarCatalogo();
+      // recarga catálogos respetando el estado del checkbox
+      await cargarCatalogo(catShowDeleted);
 
+      // si justo es el que tengo seleccionado, recargo la semana
       if (
         String(periodoId) === String(item.periodo_id) &&
         String(labId) === String(item.lab_id)
@@ -258,6 +307,24 @@ export default function HorariosPage() {
     } catch (e) {
       console.error(e);
       alert("No se pudo restaurar el horario");
+    }
+  };
+
+  const descargarPdf = async (item) => {
+    try {
+      const res = await horariosApi.pdf({
+        periodo_id: item.periodo_id,
+        lab_id: item.lab_id,
+      });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `horario-${item.periodo_nombre}-${item.lab_nombre}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      alert("No se pudo generar el PDF");
     }
   };
 
@@ -282,9 +349,6 @@ export default function HorariosPage() {
         lab_id: lab,
       });
 
-      console.log("SEMANA resp:", data);
-
-      // Soportar varios formatos: {bloques:[...]}, {ok:true,bloques:[...]}, {data:[...]}, [...]
       let raw =
         data?.bloques ??
         data?.data ??
@@ -295,11 +359,10 @@ export default function HorariosPage() {
         raw = [];
       }
 
-      // 🔧 Normalizar lo que viene del backend para que la grilla lo pueda usar
       const normalizados = raw.map((b) => ({
         ...b,
         dia: normalizarDia(b.dia),
-        hora_ini: String(b.hora_ini || "").slice(0, 5), // "07:00:00" -> "07:00"
+        hora_ini: String(b.hora_ini || "").slice(0, 5),
         hora_fin: String(b.hora_fin || "").slice(0, 5),
         docente_id: b.docente_id ? Number(b.docente_id) : null,
       }));
@@ -314,44 +377,87 @@ export default function HorariosPage() {
     }
   };
 
-  // Si cambia selección Periodo / Lab: nuevo horario o editar existente
+  // Helpers para saber si existe un horario en esa combinación
+  const existeHorario = (pid, lid) =>
+    catalogo.find(
+      (c) =>
+        String(c.periodo_id) === String(pid) &&
+        String(c.lab_id) === String(lid) &&
+        !c.horario_eliminado
+    ) || null;
+
+  // Cambiar periodo / lab
   const handlePeriodoChange = async (e) => {
     const value = e.target.value;
-    setPeriodoId(value);
-    if (value && labId) {
-      const existe = catalogo.find(
-        (c) =>
-          String(c.periodo_id) === String(value) &&
-          String(c.lab_id) === String(labId) &&
-          !c.horario_eliminado
-      );
+    const nuevoPeriodo = value || "";
+    const nuevoLab = labId || "";
+
+    // Si estoy editando un horario y quiero moverlo a una combinación
+    // que YA tiene horario, no lo permito.
+    if (
+      currentKey &&
+      nuevoPeriodo &&
+      nuevoLab &&
+      (nuevoPeriodo !== currentKey.periodo_id ||
+        nuevoLab !== currentKey.lab_id)
+    ) {
+      const existe = existeHorario(nuevoPeriodo, nuevoLab);
       if (existe) {
-        await cargarSemana(value, labId); // ya existe → lo edito
-      } else {
-        setPlan([]); // nuevo horario
+        alert(
+          "Ya existe un horario para ese período y laboratorio. No se puede mover este horario ahí."
+        );
+        // regresar selects a la combinación original
+        setPeriodoId(String(currentKey.periodo_id));
+        setLabId(String(currentKey.lab_id));
+        return;
       }
-    } else {
-      setPlan([]);
+    }
+
+    setPeriodoId(nuevoPeriodo);
+
+    // Si NO estoy editando (horario nuevo) y existe uno, lo cargo.
+    if (!currentKey && nuevoPeriodo && nuevoLab) {
+      const existe = existeHorario(nuevoPeriodo, nuevoLab);
+      if (existe) {
+        await cargarSemana(nuevoPeriodo, nuevoLab);
+      } else {
+        setPlan([]);
+      }
     }
   };
 
   const handleLabChange = async (e) => {
     const value = e.target.value;
-    setLabId(value);
-    if (periodoId && value) {
-      const existe = catalogo.find(
-        (c) =>
-          String(c.periodo_id) === String(periodoId) &&
-          String(c.lab_id) === String(value) &&
-          !c.horario_eliminado
-      );
+    const nuevoLab = value || "";
+    const nuevoPeriodo = periodoId || "";
+
+    if (
+      currentKey &&
+      nuevoPeriodo &&
+      nuevoLab &&
+      (nuevoPeriodo !== currentKey.periodo_id ||
+        nuevoLab !== currentKey.lab_id)
+    ) {
+      const existe = existeHorario(nuevoPeriodo, nuevoLab);
       if (existe) {
-        await cargarSemana(periodoId, value); // ya existe → lo edito
-      } else {
-        setPlan([]); // nuevo horario
+        alert(
+          "Ya existe un horario para ese período y laboratorio. No se puede mover este horario ahí."
+        );
+        setPeriodoId(String(currentKey.periodo_id));
+        setLabId(String(currentKey.lab_id));
+        return;
       }
-    } else {
-      setPlan([]);
+    }
+
+    setLabId(nuevoLab);
+
+    if (!currentKey && nuevoPeriodo && nuevoLab) {
+      const existe = existeHorario(nuevoPeriodo, nuevoLab);
+      if (existe) {
+        await cargarSemana(nuevoPeriodo, nuevoLab);
+      } else {
+        setPlan([]);
+      }
     }
   };
 
@@ -366,17 +472,82 @@ export default function HorariosPage() {
         b.hora_fin > hhmm
     );
 
-  // Elimina TODO el bloque (7:00–9:30, etc.) aunque se vea repetido en varias filas
-  const onDeleteBloque = (b) => {
-    if (!confirm("¿Eliminar este bloque de clase (todas sus horas)?")) return;
-    setPlan((prev) => prev.filter((x) => x !== b));
+  // Eliminar SOLO la casilla (30 min) donde se hizo clic
+  const onDeleteBloque = (b, hhmm) => {
+    if (
+      !confirm(
+        "¿Eliminar solo este bloque de 30 minutos de la clase (puede acortar la duración)?"
+      )
+    )
+      return;
+
+    setPlan((prev) => {
+      const out = [];
+      const sliceIni = hhmm;
+      const sliceFin = addMinutes(hhmm, 30);
+
+      for (const x of prev) {
+        if (x !== b) {
+          out.push(x);
+          continue;
+        }
+
+        const ini = x.hora_ini;
+        const fin = x.hora_fin;
+
+        // borrar todo el bloque
+        if (sliceIni <= ini && sliceFin >= fin) {
+          continue;
+        }
+
+        // Borrar al inicio
+        if (sliceIni <= ini && sliceFin < fin) {
+          const newIni = sliceFin;
+          if (toMin(newIni) < toMin(fin)) {
+            out.push({ ...x, hora_ini: newIni });
+          }
+          continue;
+        }
+
+        // Borrar al final
+        if (sliceIni > ini && sliceFin >= fin) {
+          const newFin = sliceIni;
+          if (toMin(newFin) > toMin(ini)) {
+            out.push({ ...x, hora_fin: newFin });
+          }
+          continue;
+        }
+
+        // Borrar en medio: dividir en dos
+        if (sliceIni > ini && sliceFin < fin) {
+          const leftFin = sliceIni;
+          const rightIni = sliceFin;
+
+          if (toMin(leftFin) > toMin(ini)) {
+            out.push({ ...x, hora_fin: leftFin });
+          }
+          if (toMin(rightIni) < toMin(fin)) {
+            out.push({
+              ...x,
+              id: undefined,
+              hora_ini: rightIni,
+            });
+          }
+          continue;
+        }
+
+        out.push(x);
+      }
+
+      return out;
+    });
   };
 
   const guardar = async () => {
     if (!periodoId || !labId)
       return alert("Selecciona periodo y laboratorio");
 
-    // Validar que ningún bloque se quede sin docente
+    // Validar docente
     for (const b of plan) {
       if (!b.docente_id) {
         alert(
@@ -386,24 +557,74 @@ export default function HorariosPage() {
       }
     }
 
+    // Validar que NO haya traslapes en un mismo día dentro del mismo horario
+    for (let d = 1; d <= 5; d++) {
+      const bloquesDia = plan
+        .filter((b) => Number(b.dia) === d)
+        .map((b) => ({
+          ini: toMin(b.hora_ini),
+          fin: toMin(b.hora_fin),
+        }))
+        .sort((a, b) => a.ini - b.ini);
+
+      for (let i = 0; i < bloquesDia.length; i++) {
+        for (let j = i + 1; j < bloquesDia.length; j++) {
+          const a = bloquesDia[i];
+          const b = bloquesDia[j];
+          const seTraslapan = !(a.fin <= b.ini || b.fin <= a.ini);
+          if (seTraslapan) {
+            alert(
+              "Hay clases encimadas en el mismo día dentro de este laboratorio. Ajusta las horas para que no se traslapen."
+            );
+            return;
+          }
+        }
+      }
+    }
+
     try {
-      const { data } = await horariosApi.bulk({
+      const payload = {
         periodo_id: Number(periodoId),
         lab_id: Number(labId),
         upserts: plan,
-      });
+      };
+
+      // si estoy moviendo el horario a otro periodo / lab, mando los originales
+      if (
+        currentKey &&
+        (String(currentKey.periodo_id) !== String(periodoId) ||
+          String(currentKey.lab_id) !== String(labId))
+      ) {
+        payload.from_periodo_id = Number(currentKey.periodo_id);
+        payload.from_lab_id = Number(currentKey.lab_id);
+      }
+
+      const { data } = await horariosApi.bulk(payload);
 
       if (!data?.ok) {
-        alert(data.msg || "No se pudo guardar el horario");
+        alert(
+          data.msg ||
+            "No se pudo guardar el horario. Revisa que no existan conflictos de docentes entre laboratorios."
+        );
         return;
       }
 
       await cargarSemana();
       await cargarCatalogo();
+
+      // el horario guardado (o movido) pasa a ser el actual
+      setCurrentKey({
+        periodo_id: String(periodoId),
+        lab_id: String(labId),
+      });
+
       alert("Horario guardado");
     } catch (e) {
       console.error(e);
-      alert("Error al guardar");
+      alert(
+        e.response?.data?.msg ||
+          "Error al guardar. Revisa que no haya conflictos de horarios de docentes."
+      );
     }
   };
 
@@ -415,7 +636,6 @@ export default function HorariosPage() {
   const openEditor = (e, dia, hora_ini) => {
     if (!periodoId || !labId) return;
 
-    // ahora SIEMPRE se puede editar (aunque el periodo esté en curso)
     const wrap = wrapRef.current;
     if (!wrap) return;
 
@@ -433,7 +653,7 @@ export default function HorariosPage() {
 
     setEditor({
       dia,
-      hora_ini,
+      hora_ini, // casilla
       left,
       top,
       existing,
@@ -475,7 +695,7 @@ export default function HorariosPage() {
         </div>
 
         {/* ======= Resumen del horario seleccionado ======= */}
-        {horarioActual && (
+        {horarioActual && !catShowDeleted && (
           <div className="hs-summary">
             <div className="hs-summary__left">
               <div className="hs-summary__title">
@@ -536,7 +756,7 @@ export default function HorariosPage() {
               value={catSearch}
               onChange={(e) => setCatSearch(e.target.value)}
             />
-            <button className="btn ghost" onClick={cargarCatalogo}>
+            <button className="btn ghost" onClick={() => cargarCatalogo()}>
               Buscar
             </button>
             <button
@@ -544,7 +764,7 @@ export default function HorariosPage() {
               onClick={() => {
                 setCatSearch("");
                 setCatShowDeleted(false);
-                cargarCatalogo();
+                cargarCatalogo(false);
               }}
             >
               Limpiar
@@ -562,8 +782,9 @@ export default function HorariosPage() {
                 type="checkbox"
                 checked={catShowDeleted}
                 onChange={(e) => {
-                  setCatShowDeleted(e.target.checked);
-                  setTimeout(cargarCatalogo, 0);
+                  const checked = e.target.checked;
+                  setCatShowDeleted(checked);
+                  cargarCatalogo(checked);
                 }}
               />
               Mostrar eliminados
@@ -572,7 +793,11 @@ export default function HorariosPage() {
 
           <div className="card list">
             {!Array.isArray(catalogo) || catalogo.length === 0 ? (
-              <p className="hs__muted">Aún no hay horarios guardados.</p>
+              <p className="hs__muted">
+                {catShowDeleted
+                  ? "No hay horarios eliminados."
+                  : "Aún no hay horarios guardados."}
+              </p>
             ) : (
               catalogo.map((item) => (
                 <div
@@ -592,48 +817,63 @@ export default function HorariosPage() {
                     <span className="pill pill-muted">
                       {item.bloques_activos} bloque(s)
                     </span>
-                    <span
-                      className={
-                        "pill " +
-                        (item.en_curso ? "pill-warn" : "pill-ok")
-                      }
-                    >
-                      {item.en_curso ? "En curso" : "Fuera de periodo"}
-                    </span>
-                    <span
-                      className={
-                        "pill " +
-                        (item.horario_eliminado
-                          ? "pill-muted"
-                          : item.activo
-                          ? "pill-ok"
-                          : "pill-grey")
-                      }
-                    >
-                      {item.horario_eliminado
-                        ? "Eliminado"
-                        : item.activo
-                        ? "Activo"
-                        : "Inactivo"}
-                    </span>
+                    {!catShowDeleted && (
+                      <>
+                        <span
+                          className={
+                            "pill " +
+                            (item.en_curso ? "pill-warn" : "pill-ok")
+                          }
+                        >
+                          {item.en_curso ? "En curso" : "Fuera de periodo"}
+                        </span>
+                        <span
+                          className={
+                            "pill " +
+                            (item.horario_eliminado
+                              ? "pill-muted"
+                              : item.activo
+                              ? "pill-ok"
+                              : "pill-grey")
+                          }
+                        >
+                          {item.horario_eliminado
+                            ? "Eliminado"
+                            : item.activo
+                            ? "Activo"
+                            : "Inactivo"}
+                        </span>
+                      </>
+                    )}
                   </div>
                   <div className="row__actions">
-                    <button
-                      className="btn ghost"
-                      onClick={() => abrirHorario(item)}
-                    >
-                      Ver / editar
-                    </button>
+                    {!catShowDeleted && (
+                      <>
+                        <button
+                          className="btn ghost"
+                          onClick={() => abrirHorario(item)}
+                        >
+                          Ver / editar
+                        </button>
+
+                        <button
+                          className="btn ghost"
+                          onClick={() => toggleActivo(item)}
+                          disabled={item.horario_eliminado}
+                        >
+                          {item.activo ? "Desactivar" : "Activar"}
+                        </button>
+                      </>
+                    )}
 
                     <button
                       className="btn ghost"
-                      onClick={() => toggleActivo(item)}
-                      disabled={item.horario_eliminado}
+                      onClick={() => descargarPdf(item)}
                     >
-                      {item.activo ? "Desactivar" : "Activar"}
+                      PDF
                     </button>
 
-                    {!item.horario_eliminado ? (
+                    {!catShowDeleted ? (
                       <button
                         className="btn danger"
                         onClick={() => eliminarHorario(item)}
@@ -641,12 +881,20 @@ export default function HorariosPage() {
                         Eliminar
                       </button>
                     ) : (
-                      <button
-                        className="btn ghost"
-                        onClick={() => restaurarHorario(item)}
-                      >
-                        Restaurar
-                      </button>
+                      <>
+                        <button
+                          className="btn ghost"
+                          onClick={() => restaurarHorario(item)}
+                        >
+                          Restaurar
+                        </button>
+                        <button
+                          className="btn danger"
+                          onClick={() => eliminarHorario(item)}
+                        >
+                          Eliminar permanente
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -657,7 +905,11 @@ export default function HorariosPage() {
 
         {/* ======= Filtros y grilla de edición ======= */}
         <div className="hs__filters">
-          <button className="btn ghost" onClick={() => nav(-1)}>
+          <button
+            className="btn"
+            style={{ background: "#4C1D95" }}
+            onClick={() => nav(-1)}
+          >
             ◂ Regresar
           </button>
 
@@ -690,31 +942,24 @@ export default function HorariosPage() {
           <div className="hs__actions">
             <button
               className="btn ghost"
+              onClick={() => {
+                setPeriodoId("");
+                setLabId("");
+                setPlan([]);
+                setCurrentKey(null); // nuevo horario
+              }}
+            >
+              Nuevo horario
+            </button>
+            <button
+              className="btn ghost"
               onClick={() => cargarSemana()}
-              disabled={loading}
+              disabled={loading || !periodoId || !labId}
             >
               Actualizar
             </button>
             <button className="btn" onClick={guardar}>
               Guardar semana
-            </button>
-            <button
-              className="btn ghost"
-              onClick={async () => {
-                if (!periodoId || !labId) return;
-                const res = await horariosApi.pdf({
-                  periodo_id: periodoId,
-                  lab_id: labId,
-                });
-                const url = URL.createObjectURL(res.data);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = "horario.pdf";
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
-            >
-              PDF
             </button>
           </div>
         </div>
@@ -751,7 +996,6 @@ export default function HorariosPage() {
                       ? colorFor(String(b.codigo || b.materia || "x"))
                       : null;
 
-                    // buscar docente para mostrar siempre el nombre correcto
                     const docente =
                       b && b.docente_id
                         ? docentes.find(
@@ -788,7 +1032,7 @@ export default function HorariosPage() {
                             </div>
                             <button
                               className="hs__mini danger"
-                              onClick={() => onDeleteBloque(b)}
+                              onClick={() => onDeleteBloque(b, hhmm)}
                             >
                               ×
                             </button>
@@ -830,17 +1074,26 @@ function PopoverEditor({ style, base, docentes, existing, onCancel, onSave }) {
   const [docenteId, setDocenteId] = useState(
     existing?.docente_id ? String(existing.docente_id) : ""
   );
+
+  const [horaIni, setHoraIni] = useState(
+    existing?.hora_ini || base.hora_ini
+  );
+  const horasIni = useMemo(
+    () => timeRange("07:00", "18:30", 30),
+    []
+  );
+
   const [horaFin, setHoraFin] = useState(
     existing?.hora_fin || addMinutes(base.hora_ini, 60)
   );
 
   const horasFin = useMemo(
-    () => timeRange(base.hora_ini, "19:00", 30).slice(1),
-    [base.hora_ini]
+    () => timeRange(horaIni, "19:00", 30).slice(1),
+    [horaIni]
   );
 
   const submit = () => {
-    if (horaFin <= base.hora_ini)
+    if (horaFin <= horaIni)
       return alert("Hora fin debe ser mayor que inicio");
 
     if (!docenteId) {
@@ -852,6 +1105,7 @@ function PopoverEditor({ style, base, docentes, existing, onCancel, onSave }) {
 
     const payload = {
       ...base,
+      hora_ini: horaIni,
       hora_fin: horaFin,
       materia: materia || null,
       codigo: codigo || null,
@@ -925,6 +1179,20 @@ function PopoverEditor({ style, base, docentes, existing, onCancel, onSave }) {
           />
         </div>
         <div>
+          <label>Hora inicio</label>
+          <select
+            className="cell-input"
+            value={horaIni}
+            onChange={(e) => setHoraIni(e.target.value)}
+          >
+            {horasIni.map((h) => (
+              <option key={h} value={h}>
+                {h}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
           <label>Hora fin</label>
           <select
             className="cell-input"
@@ -969,12 +1237,12 @@ function addMinutes(hhmm, m) {
   ).padStart(2, "0")}`;
 }
 function timeRange(from, to, step) {
-  const toMin = (s) => {
+  const toMinLoc = (s) => {
     const [H, M] = s.split(":").map(Number);
     return H * 60 + M;
   };
   const out = [];
-  for (let t = toMin(from); t <= toMin(to); t += step) {
+  for (let t = toMinLoc(from); t <= toMinLoc(to); t += step) {
     out.push(
       `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(
         t % 60

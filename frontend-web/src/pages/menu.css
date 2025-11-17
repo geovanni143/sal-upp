@@ -521,6 +521,169 @@ input, select {
 
 
 
+/* Filtros pequeños arriba de la lista */
+.filters-row .input-small {
+  flex: 1 1 140px;
+  min-width: 0;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.btn-clear-filters {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: #6b21a8;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-ver-todo {
+  border: none;
+  background: transparent;
+  color: #4c1d95;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* --- Filtros de revisión de asistencias --- */
+
+.filters-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1.4fr 1.4fr auto;
+  gap: 8px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.filter-select {
+  width: 100%;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #374151;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: #4c1d95;
+  box-shadow: 0 0 0 1px rgba(76, 29, 149, 0.15);
+}
+
+.filter-clear {
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #4b5563;
+}
+
+.filter-clear:hover {
+  background: #f3f4ff;
+}
+
+/* Botón pequeño de ver todo / próximas */
+.small-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 4px;
+  margin-bottom: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid #ddd6fe;
+  background: #eef2ff;
+  font-size: 12px;
+  color: #4c1d95;
+  cursor: pointer;
+}
+
+.small-toggle:hover {
+  background: #e0e7ff;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -72,6 +72,10 @@ export const horariosApi = {
   eliminar: ({ periodo_id, lab_id }) =>
     api.delete(`/horarios/catalogo/${periodo_id}/${lab_id}`),
 
+  // 🔥 eliminación PERMANENTE de horarios ya marcados como eliminados
+  eliminarHard: ({ periodo_id, lab_id }) =>
+    api.delete(`/horarios/catalogo/${periodo_id}/${lab_id}/hard`),
+
   restore: ({ periodo_id, lab_id }) =>
     api.post(`/horarios/catalogo/${periodo_id}/${lab_id}/restore`),
 

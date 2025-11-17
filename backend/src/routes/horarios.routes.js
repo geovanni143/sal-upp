@@ -1,6 +1,7 @@
 // backend/src/routes/horarios.routes.js
 import { Router } from "express";
 import { pool } from "../services/db.js";
+import PDFDocument from "pdfkit";
 
 const r = Router();
 
@@ -16,16 +17,44 @@ function isTodayBetween(iniStr, finStr) {
   return todayStr >= iniStr && todayStr <= finStr;
 }
 
-/* =========================================================
-   GET /api/horarios/catalogo?search=&mostrar_eliminados=0|1
+// normalizar día 'lu','ma','1','2' → 1..5
+function normalizarDiaDB(dia) {
+  const map = { lu: 1, ma: 2, mi: 3, ju: 4, vi: 5 };
+  if (typeof dia === "number") return dia;
+  if (typeof dia === "string") {
+    const s = dia.trim().toLowerCase();
+    if (map[s]) return map[s];
+    const n = Number(s);
+    if (!Number.isNaN(n)) return n;
+  }
+  return 0;
+}
 
-   Un renglón por (periodo_id, lab_id)
-   - periodo_nombre, periodo_ini, periodo_fin
-   - lab_nombre
-   - bloques_activos
-   - activo (0/1)
-   - horario_eliminado (1 si TODOS los bloques están eliminados)
-   - en_curso (1 si hoy ∈ [fecha_ini, fecha_fin])
+function nombreDia(d) {
+  const n = normalizarDiaDB(d);
+  const map = {
+    1: "Lunes",
+    2: "Martes",
+    3: "Miércoles",
+    4: "Jueves",
+    5: "Viernes",
+  };
+  return map[n] || "Día desconocido";
+}
+
+// Horas medias para tabla y PDF (7:00–18:30)
+const horasMedias = (() => {
+  const out = [];
+  const pad = (n) => String(n).padStart(2, "0");
+  for (let H = 7; H < 19; H++) {
+    out.push(`${pad(H)}:00`);
+    out.push(`${pad(H)}:30`);
+  }
+  return out;
+})();
+
+/* =========================================================
+   GET /api/horarios/catalogo
    ========================================================= */
 r.get("/catalogo", async (req, res) => {
   try {
@@ -35,9 +64,12 @@ r.get("/catalogo", async (req, res) => {
     const filtros = [];
     const params = [];
 
-    if (!showDeleted) {
+    if (showDeleted) {
+      filtros.push("IFNULL(h.eliminado,0) = 1");
+    } else {
       filtros.push("IFNULL(h.eliminado,0) = 0");
     }
+
     if (search) {
       filtros.push("(p.nombre LIKE ? OR l.nombre LIKE ?)");
       const like = `%${search}%`;
@@ -55,10 +87,8 @@ r.get("/catalogo", async (req, res) => {
         DATE_FORMAT(p.fecha_fin,'%Y-%m-%d') AS periodo_fin,
         h.lab_id,
         l.nombre AS lab_nombre,
-        SUM(IF(IFNULL(h.eliminado,0)=0,1,0)) AS bloques_activos,
-        SUM(IF(IFNULL(h.eliminado,0)=1,1,0)) AS bloques_eliminados,
-        MIN(IFNULL(h.activo,0)) AS activo_flag,
-        MAX(IFNULL(h.eliminado,0)) AS eliminado_flag
+        COUNT(*) AS bloques_activos,
+        MIN(IFNULL(h.activo,0)) AS activo_flag
       FROM horarios h
       JOIN periodos p ON p.id = h.periodo_id
       JOIN labs     l ON l.id = h.lab_id
@@ -70,11 +100,6 @@ r.get("/catalogo", async (req, res) => {
     );
 
     const data = rows.map((r) => {
-      const horario_eliminado =
-        Number(r.bloques_activos) === 0 && Number(r.bloques_eliminados) > 0
-          ? 1
-          : 0;
-
       const en_curso = isTodayBetween(r.periodo_ini, r.periodo_fin);
 
       return {
@@ -85,8 +110,8 @@ r.get("/catalogo", async (req, res) => {
         periodo_fin: r.periodo_fin,
         lab_nombre: r.lab_nombre,
         bloques_activos: Number(r.bloques_activos),
-        horario_eliminado,
-        activo: Number(r.activo_flag),
+        horario_eliminado: showDeleted ? 1 : 0,
+        activo: showDeleted ? 0 : Number(r.activo_flag),
         en_curso,
       };
     });
@@ -100,7 +125,6 @@ r.get("/catalogo", async (req, res) => {
 
 /* =========================================================
    GET /api/horarios/catalogo/:periodo_id/:lab_id
-   (no la usa el front por ahora, la dejamos por si acaso)
    ========================================================= */
 r.get("/catalogo/:periodo_id/:lab_id", async (req, res) => {
   try {
@@ -126,8 +150,7 @@ r.get("/catalogo/:periodo_id/:lab_id", async (req, res) => {
 });
 
 /* =========================================================
-   PATCH /api/horarios/catalogo/:periodo_id/:lab_id/activar
-   - Siempre se puede activar
+   PATCH activar / desactivar
    ========================================================= */
 r.patch("/catalogo/:periodo_id/:lab_id/activar", async (req, res) => {
   try {
@@ -146,10 +169,6 @@ r.patch("/catalogo/:periodo_id/:lab_id/activar", async (req, res) => {
   }
 });
 
-/* =========================================================
-   PATCH /api/horarios/catalogo/:periodo_id/:lab_id/desactivar
-   - Solo si el período NO está en curso
-   ========================================================= */
 r.patch("/catalogo/:periodo_id/:lab_id/desactivar", async (req, res) => {
   try {
     const { periodo_id, lab_id } = req.params;
@@ -186,9 +205,7 @@ r.patch("/catalogo/:periodo_id/:lab_id/desactivar", async (req, res) => {
 });
 
 /* =========================================================
-   DELETE /api/horarios/catalogo/:periodo_id/:lab_id
-   - Eliminación lógica (eliminado=1)
-   - Solo si el período NO está en curso
+   DELETE lógico /catalogo/:periodo_id/:lab_id
    ========================================================= */
 r.delete("/catalogo/:periodo_id/:lab_id", async (req, res) => {
   try {
@@ -226,8 +243,37 @@ r.delete("/catalogo/:periodo_id/:lab_id", async (req, res) => {
 });
 
 /* =========================================================
-   POST /api/horarios/catalogo/:periodo_id/:lab_id/restore
-   - Volver a eliminar=0
+   DELETE duro /catalogo/:periodo_id/:lab_id/hard
+   ========================================================= */
+r.delete("/catalogo/:periodo_id/:lab_id/hard", async (req, res) => {
+  try {
+    const { periodo_id, lab_id } = req.params;
+
+    const [result] = await pool.query(
+      `DELETE FROM horarios 
+       WHERE periodo_id=? AND lab_id=? AND IFNULL(eliminado,0)=1`,
+      [periodo_id, lab_id]
+    );
+
+    return res.json({
+      ok: true,
+      msg:
+        result.affectedRows > 0
+          ? "Horario eliminado permanentemente."
+          : "No había bloques para eliminar (ya estaba limpio).",
+    });
+  } catch (err) {
+    console.error("DELETE HARD horario:", err);
+    return res.json({
+      ok: false,
+      msg:
+        "No se pudo eliminar permanentemente el horario (revisa si tiene registros relacionados).",
+    });
+  }
+});
+
+/* =========================================================
+   POST /restore
    ========================================================= */
 r.post("/catalogo/:periodo_id/:lab_id/restore", async (req, res) => {
   try {
@@ -247,8 +293,7 @@ r.post("/catalogo/:periodo_id/:lab_id/restore", async (req, res) => {
 });
 
 /* =========================================================
-   GET /api/horarios/semana?periodo_id=..&lab_id=..
-   - Devuelve TODOS los bloques de ese horario
+   GET /api/horarios/semana
    ========================================================= */
 r.get("/semana", async (req, res) => {
   try {
@@ -294,11 +339,16 @@ r.get("/semana", async (req, res) => {
 
 /* =========================================================
    POST /api/horarios/bulk
-   - Reemplaza COMPLETAMENTE el horario (periodo_id, lab_id)
-   - upserts = arreglo de bloques
    ========================================================= */
 r.post("/bulk", async (req, res) => {
-  const { periodo_id, lab_id, upserts = [] } = req.body || {};
+  const {
+    periodo_id,
+    lab_id,
+    upserts = [],
+    from_periodo_id,
+    from_lab_id,
+  } = req.body || {};
+
   if (!periodo_id || !lab_id) {
     return res.status(400).json({ ok: false, msg: "missing_ids" });
   }
@@ -307,18 +357,74 @@ r.post("/bulk", async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    // Reglas: un lab solo puede tener un horario por periodo
-    // (ya lo garantizamos porque BORRAMOS y volvemos a insertar)
+    const lista = Array.isArray(upserts) ? upserts : [];
+
+    // Validación: conflicto de docente en OTROS labs
+    for (const b of lista) {
+      if (!b || !b.docente_id) continue;
+
+      const dia = normalizarDiaDB(b.dia);
+      const ini = HHMMSS(b.hora_ini);
+      const fin = HHMMSS(b.hora_fin);
+
+      const [rows] = await conn.query(
+        `
+        SELECT 
+          h.dia,
+          DATE_FORMAT(h.hora_ini,'%H:%i') AS hora_ini,
+          DATE_FORMAT(h.hora_fin,'%H:%i') AS hora_fin,
+          l.nombre AS lab_nombre,
+          p.nombre AS periodo_nombre
+        FROM horarios h
+        JOIN labs     l ON l.id = h.lab_id
+        JOIN periodos p ON p.id = h.periodo_id
+        WHERE h.periodo_id = ?
+          AND h.lab_id <> ?
+          AND IFNULL(h.eliminado,0)=0
+          AND h.docente_id = ?
+          AND h.dia = ?
+          AND NOT (h.hora_fin <= ? OR h.hora_ini >= ?)
+        LIMIT 1
+        `,
+        [periodo_id, lab_id, b.docente_id, dia, ini, fin]
+      );
+
+      if (rows.length > 0) {
+        const c = rows[0];
+        await conn.rollback();
+        return res.status(400).json({
+          ok: false,
+          msg: `Conflicto de horario: el docente ya tiene una clase en "${c.periodo_nombre} — ${c.lab_nombre}", ${nombreDia(
+            c.dia
+          )} de ${c.hora_ini} a ${c.hora_fin}.`,
+        });
+      }
+    }
+
+    // Si se está moviendo el horario, borrar el origen
+    if (
+      from_periodo_id &&
+      from_lab_id &&
+      (Number(from_periodo_id) !== Number(periodo_id) ||
+        Number(from_lab_id) !== Number(lab_id))
+    ) {
+      await conn.query(
+        `DELETE FROM horarios WHERE periodo_id=? AND lab_id=?`,
+        [from_periodo_id, from_lab_id]
+      );
+    }
+
+    // Borrar horario actual de este lab/periodo y recrear
     await conn.query(
       `DELETE FROM horarios WHERE periodo_id=? AND lab_id=?`,
       [periodo_id, lab_id]
     );
 
-    if (Array.isArray(upserts) && upserts.length) {
+    if (lista.length) {
       const ph = [];
       const val = [];
 
-      for (const b of upserts) {
+      for (const b of lista) {
         if (!b) continue;
         const {
           dia,
@@ -336,7 +442,7 @@ r.post("/bulk", async (req, res) => {
         val.push(
           periodo_id,
           lab_id,
-          Number(dia),
+          normalizarDiaDB(dia),
           HHMMSS(hora_ini),
           HHMMSS(hora_fin),
           materia,
@@ -364,17 +470,247 @@ r.post("/bulk", async (req, res) => {
   } catch (err) {
     console.error("POST /horarios/bulk:", err);
     await conn.rollback();
-    res.status(400).json({ ok: false, msg: "bulk_failed" });
+    res
+      .status(400)
+      .json({ ok: false, msg: err.message || "bulk_failed" });
   } finally {
     conn.release();
   }
 });
 
 /* =========================================================
-   PDF (placeholder)
+   GET /api/horarios/pdf?periodo_id=&lab_id=
+   Genera PDF con tabla llena:
+   - solo horas realmente usadas
+   - 1+ páginas si hace falta
+   - altura de fila dinámica para textos largos
    ========================================================= */
-r.get("/pdf", async (_req, res) => {
-  res.json({ ok: true, msg: "Falta implementar PDF" });
+r.get("/pdf", async (req, res) => {
+  try {
+    const { periodo_id, lab_id } = req.query;
+    if (!periodo_id || !lab_id) {
+      return res.status(400).json({ ok: false, msg: "missing_ids" });
+    }
+
+    const [[p]] = await pool.query(
+      `SELECT nombre,
+              DATE_FORMAT(fecha_ini,'%Y-%m-%d') AS ini,
+              DATE_FORMAT(fecha_fin,'%Y-%m-%d') AS fin
+       FROM periodos WHERE id=?`,
+      [periodo_id]
+    );
+    const [[l]] = await pool.query(
+      `SELECT nombre FROM labs WHERE id=?`,
+      [lab_id]
+    );
+
+    const [rows] = await pool.query(
+      `
+      SELECT 
+        h.dia,
+        DATE_FORMAT(h.hora_ini,'%H:%i') AS hora_ini,
+        DATE_FORMAT(h.hora_fin,'%H:%i') AS hora_fin,
+        h.materia,
+        h.codigo,
+        h.grupo,
+        CONCAT(
+          COALESCE(u.nombre,''), 
+          IF(u.apellidos IS NULL OR u.apellidos='', '', CONCAT(' ',u.apellidos))
+        ) AS docente_nombre
+      FROM horarios h
+      LEFT JOIN users u ON u.id = h.docente_id
+      WHERE h.periodo_id=? AND h.lab_id=? AND IFNULL(h.eliminado,0)=0
+      ORDER BY h.dia, h.hora_ini
+      `,
+      [periodo_id, lab_id]
+    );
+
+    const bloques = rows.map((b) => ({
+      ...b,
+      dia: normalizarDiaDB(b.dia),
+      hora_ini: HHMM(b.hora_ini),
+      hora_fin: HHMM(b.hora_fin),
+      docente_nombre: b.docente_nombre || "",
+    }));
+
+    // ---- Determinar rango de horas realmente usadas ----
+    let horasUsadas = horasMedias;
+    if (bloques.length) {
+      const idxs = [];
+      for (const b of bloques) {
+        // Marcamos TODAS las medias horas donde la clase está activa
+        for (let i = 0; i < horasMedias.length; i++) {
+          const h = horasMedias[i];
+          if (h >= b.hora_ini && h < b.hora_fin) {
+            idxs.push(i);
+          }
+        }
+      }
+      if (idxs.length) {
+        const minIdx = Math.max(0, Math.min(...idxs));
+        const maxIdx = Math.min(horasMedias.length - 1, Math.max(...idxs));
+        horasUsadas = horasMedias.slice(minIdx, maxIdx + 1);
+      }
+    }
+
+    // Helper: buscar bloque en una media hora
+    const findBloque = (dia, hhmm) =>
+      bloques.find(
+        (x) => x.dia === dia && x.hora_ini <= hhmm && x.hora_fin > hhmm
+      ) || null;
+
+    // ---- PDF ----
+    const margin = 40;
+    const doc = new PDFDocument({
+      size: "LETTER",
+      margin,
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="horario-${periodo_id}-${lab_id}.pdf"`
+    );
+    doc.pipe(res);
+
+    const pageWidth = doc.page.width;
+    const usableWidth = pageWidth - margin * 2;
+    const colHoraW = 60;
+    const colDiaW = (usableWidth - colHoraW) / 5;
+    const baseRowH = 28; // mínimo por fila
+    const diasHeaders = ["LUNES", "MARTES", "MIÉRCOLES", "JUEVES", "VIERNES"];
+
+    // Encabezado principal (solo en la primera página)
+    doc.fontSize(11).text("UNIVERSIDAD POLITÉCNICA DE PACHUCA", {
+      align: "center",
+    });
+    doc.moveDown(0.3);
+    doc
+      .fontSize(10)
+      .text("HORARIO DE CLASES POR ESPACIOS EDUCATIVOS", {
+        align: "center",
+      });
+    doc.moveDown(0.2);
+    if (p) {
+      doc
+        .fontSize(9)
+        .text(`${p.nombre} (${p.ini} — ${p.fin})`, { align: "center" });
+    }
+    if (l) {
+      doc.moveDown(0.2);
+      doc.fontSize(9).text(`HORARIO DE ${l.nombre}`, { align: "center" });
+    }
+    doc.moveDown(1);
+
+    // Encabezado de tabla (cada página)
+    const drawTableHeader = () => {
+      const y = doc.y;
+      const startX = margin;
+      const rowHHeader = 26;
+      const tableWidth = colHoraW + 5 * colDiaW;
+
+      doc.fontSize(8).text("HORA", startX + 4, y + 9, {
+        width: colHoraW - 8,
+        align: "center",
+      });
+
+      diasHeaders.forEach((d, idx) => {
+        const x = startX + colHoraW + idx * colDiaW;
+        doc.text(d, x + 4, y + 9, {
+          width: colDiaW - 8,
+          align: "center",
+        });
+      });
+
+      doc.rect(startX, y, tableWidth, rowHHeader).stroke();
+      return y + rowHHeader;
+    };
+
+    let y = drawTableHeader();
+    const bottomLimit = doc.page.height - margin;
+
+    // ---- Filas de horario (altura dinámica) ----
+    for (const hhmm of horasUsadas) {
+      const startX = margin;
+
+      // 1) Precalcular textos de cada celda y altura requerida
+      const cellTexts = {};
+      let maxCellHeight = 0;
+
+      for (let d = 1; d <= 5; d++) {
+        const b = findBloque(d, hhmm);
+        if (!b) {
+          cellTexts[d] = "";
+          continue;
+        }
+
+        const partes = [];
+
+        if (b.materia || b.codigo) {
+          const linea1 = [b.materia, b.codigo]
+            .filter(Boolean)
+            .join(" — ");
+          partes.push(linea1);
+        }
+        if (b.grupo) {
+          partes.push(`Grupo: ${b.grupo}`);
+        }
+        if (b.docente_nombre) {
+          partes.push(`Imparte: ${b.docente_nombre}`);
+        }
+
+        const text = partes.join("\n");
+        cellTexts[d] = text;
+
+        if (text) {
+          doc.fontSize(7);
+          const hText = doc.heightOfString(text, {
+            width: colDiaW - 6,
+          });
+          if (hText > maxCellHeight) maxCellHeight = hText;
+        }
+      }
+
+      // Altura final de la fila (mínimo baseRowH)
+      const rowH = Math.max(baseRowH, maxCellHeight + 6); // + padding
+
+      // 2) Salto de página si no cabe esta fila completa
+      if (y + rowH > bottomLimit) {
+        doc.addPage();
+        doc.moveDown(0.5);
+        y = drawTableHeader();
+      }
+
+      // 3) Dibujar la fila (hora + celdas)
+      // Columna hora
+      doc.rect(startX, y, colHoraW, rowH).stroke();
+      doc.fontSize(8).text(hhmm, startX + 6, y + 9, {
+        width: colHoraW - 10,
+        align: "left",
+      });
+
+      // Celdas de días
+      for (let d = 1; d <= 5; d++) {
+        const x = startX + colHoraW + (d - 1) * colDiaW;
+        doc.rect(x, y, colDiaW, rowH).stroke();
+
+        const text = cellTexts[d];
+        if (!text) continue;
+
+        doc.fontSize(7).text(text, x + 3, y + 3, {
+          width: colDiaW - 6,
+          // sin "height" para no recortar, ya ajustamos rowH arriba
+        });
+      }
+
+      y += rowH;
+    }
+
+    doc.end();
+  } catch (err) {
+    console.error("GET /horarios/pdf:", err);
+    res.status(500).end();
+  }
 });
 
 /* =========================================================
