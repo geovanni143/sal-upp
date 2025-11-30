@@ -1,0 +1,40 @@
+.perfil-shell {
+  padding: 16px;
+}
+
+.perfil-card {
+  background: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 420px;
+  margin: auto;
+}
+
+.perfil-card input {
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  font-size: 16px;
+}
+
+.btn-guardar {
+  background: #4b1d8f;
+  color: #fff;
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.alert {
+  padding: 10px;
+  background: #e2ffe3;
+  border: 1px solid #8df28d;
+  color: #056105;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}

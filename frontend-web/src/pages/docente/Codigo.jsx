@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import "./docente.css";
 
-export default function Codigo() {
+export default function AsistenciaManual() {
   const firmaRef = useRef(null);
   const [form, setForm] = useState({
     docente_id: "",
