@@ -8,6 +8,7 @@ export default function Perfil() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [avatarPreview, setAvatarPreview] = useState(null);
+
   const [editOpen, setEditOpen] = useState(false);
   const [form, setForm] = useState({
     nombre: "",
@@ -17,6 +18,9 @@ export default function Perfil() {
     password: "",
   });
 
+  /* ==========================
+      CARGAR PERFIL
+  ========================== */
   useEffect(() => {
     const load = async () => {
       try {
@@ -39,9 +43,9 @@ export default function Perfil() {
     load();
   }, []);
 
-  /* ========================
-        SUBIR AVATAR
-  ========================*/
+  /* ==========================
+      SUBIR AVATAR
+  ========================== */
   const subirAvatar = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -57,6 +61,7 @@ export default function Perfil() {
       });
 
       alert("Avatar actualizado correctamente");
+
       const r = await api.get("/me");
       setData(r.data);
       setAvatarPreview(null);
@@ -66,19 +71,24 @@ export default function Perfil() {
     }
   };
 
-  // ==============================
-  //   GUARDAR CAMBIOS DEL PERFIL
-  // ==============================
+  /* ==========================
+      ACTUALIZAR PERFIL
+  ========================== */
   const actualizarPerfil = async () => {
     try {
       const r = await api.put("/me", form);
-      alert(r.data.mensaje);
 
-      const updated = await api.get("/me");
-      setData(updated.data);
+      if (r.data.ok) {
+        alert("Datos actualizados correctamente");
+      } else {
+        alert("Actualización realizada");
+      }
 
+      const refreshed = await api.get("/me");
+      setData(refreshed.data);
       setEditOpen(false);
     } catch (err) {
+      console.error(err);
       alert(err.response?.data?.error || "Error actualizando perfil");
     }
   };
@@ -86,6 +96,9 @@ export default function Perfil() {
   if (loading) return <p style={{ padding: "20px" }}>Cargando...</p>;
   if (!data) return <p>Error cargando perfil</p>;
 
+  /* ==========================
+      AVATAR URL CORRECTA
+  ========================== */
   let realAvatar = data.avatar_url;
   if (realAvatar && realAvatar.startsWith("/uploads")) {
     realAvatar = API_BASE + realAvatar;
@@ -101,15 +114,15 @@ export default function Perfil() {
 
       <div className="perfil-avatar-container">
         <img className="perfil-avatar-img" src={avatarURL} alt="avatar" />
+      <h2 className="perfil-subtitulo"></h2>
 
-<h2 className="perfil-subtitulo"></h2>
         <label className="perfil-avatar-input">
           Cambiar foto
           <input type="file" accept="image/*" onChange={subirAvatar} />
         </label>
       </div>
 
-      {/* Datos del usuario */}
+      {/* Datos visibles */}
       <div className="perfil-info">
         <p><strong>Nombre:</strong> {data.nombre} {data.apellidos}</p>
         <p><strong>Correo electrónico:</strong> {data.email}</p>
@@ -123,15 +136,13 @@ export default function Perfil() {
       </button>
 
       <button
-  className="perfil-boton-secundario"
-  onClick={() => (window.location.href = "/docente")}
->
-  Regresar al menú
-</button>
+        className="perfil-boton-secundario"
+        onClick={() => (window.location.href = "/docente")}
+      >
+        Regresar al menú
+      </button>
 
-      {/* ====================
-          MODAL DE EDICIÓN
-      ==================== */}
+      {/* MODAL */}
       {editOpen && (
         <div className="modal-overlay">
           <div className="modal-box">

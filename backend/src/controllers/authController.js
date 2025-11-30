@@ -71,7 +71,7 @@ export async function login(req, res) {
     // ⚠️ TABLA Y COLUMNAS REALES EN TU BD:
     // users: id, username, password_hash, nombre, email, role, activo, creado_en
     const [rows] = await pool.query(
-      "SELECT id, username, password_hash, role, activo FROM users WHERE username = ? LIMIT 1",
+      "SELECT id, username, password_hash, rol, activo FROM users WHERE username = ? LIMIT 1",
       [username]
     );
     const user = rows?.[0];
