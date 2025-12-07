@@ -1,4 +1,3 @@
-// src/index.js
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
@@ -12,11 +11,13 @@ import periodosRoutes from "./routes/periodos.routes.js";
 import horariosRoutes from "./routes/horarios.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import meRoutes from "./routes/me.routes.js";
+import docentesRoutes from "./routes/docentes.routes.js";   // ← ya estaba
+import incidentesRoutes from "./routes/incidentes.routes.js"; // ← NUEVO
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// CORREGIDO ✔ — uploads está en /backend/uploads, NO en /backend/src/uploads
 const uploadsPath = path.join(__dirname, "..", "uploads");
 console.log("Uploads dir REAL:", uploadsPath);
 
@@ -31,7 +32,6 @@ app.use(
 
 app.use(express.json());
 
-// Servir archivos estáticos correctamente ✔
 app.use("/uploads", express.static(uploadsPath));
 
 /* Rutas */
@@ -42,6 +42,9 @@ app.use("/api/periodos", periodosRoutes);
 app.use("/api/horarios", horariosRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/me", meRoutes);
+app.use("/api/docentes", docentesRoutes);
+app.use("/api/incidentes", incidentesRoutes);  // ← NUEVO
+
 
 const PORT = Number(process.env.PORT || 4000);
 app.listen(PORT, () => {

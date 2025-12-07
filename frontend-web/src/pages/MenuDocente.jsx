@@ -9,16 +9,30 @@ export default function MenuDocente(){
   const nav = useNavigate();
   const [clases, setClases] = useState(null); // null = cargando
 
-  useEffect(() => {
-    (async () => {
-      try{
-        const { data } = await api.get("/docente/hoy");   // ← real
-        setClases(Array.isArray(data) ? data : []);
-      }catch{
-        setClases([]); // sin mocks fijos
-      }
-    })();
-  }, []);
+ useEffect(() => {
+  (async () => {
+    try {
+      const { data } = await api.get("/docentes/clases-hoy");
+
+      const adaptadas = (data.clases || []).map((c) => ({
+        id: c.id,
+        materia: c.materia,
+        lab: c.lab_nombre,
+        estado: "Programada",
+        dia: "",
+        hora: `${c.hora_ini} - ${c.hora_fin}`,
+        extra: c.grupo ? `Grupo ${c.grupo}` : null,
+      }));
+
+      setClases(adaptadas);
+    } catch (err) {
+      console.error(err);
+      setClases([]);
+    }
+  })();
+}, []);
+
+
 
   const logout = () => { clearSession(); nav("/login", { replace:true }); };
 
