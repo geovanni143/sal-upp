@@ -130,4 +130,19 @@ r.delete("/:id", log("labs:delete"), async (req, res) => {
   }
 });
 
+// === LABORATORIOS PÚBLICOS (SIN LOGIN) ===
+// Devuelve solo id y nombre para el combo de la página pública
+r.get("/public", async (_req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT id, nombre FROM labs WHERE activo = 1 ORDER BY nombre"
+    );
+    return res.json({ ok: true, labs: rows });
+  } catch (err) {
+    console.error("GET /api/labs/public error:", err);
+    return res.status(500).json({ ok: false, msg: "server_error" });
+  }
+});
+
+
 export default r;
