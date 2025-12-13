@@ -697,12 +697,10 @@ r.get("/pdf", async (req, res) => {
     doc.text("Hora", startX, y, { width: colWidthHora, align: "center" });
     const dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
     dias.forEach((d, idx) => {
-      doc.text(
-        d,
-        startX + colWidthHora + colWidthDia * idx,
-        y,
-        { width: colWidthDia, align: "center" }
-      );
+      doc.text(d, startX + colWidthHora + colWidthDia * idx, y, {
+        width: colWidthDia,
+        align: "center",
+      });
     });
 
     y += 18;
@@ -748,6 +746,7 @@ r.get("/pdf", async (req, res) => {
     res.status(500).json({ ok: false, msg: "server_error" });
   }
 });
+
 /* =========================================================
    LISTA DE HORARIOS PARA GENERAR QR
    GET /api/horarios/lista
@@ -894,6 +893,7 @@ r.get("/qr-pdf", async (req, res) => {
 
     doc.pipe(res);
 
+    // Encabezado
     doc.fontSize(12).text("UNIVERSIDAD POLITÉCNICA DE PACHUCA", {
       align: "center",
     });
@@ -918,14 +918,29 @@ r.get("/qr-pdf", async (req, res) => {
       align: "center",
     });
 
-    doc.moveDown(2);
+    // =========================
+    //  QR GRANDE + CÓDIGO ABAJO
+    // =========================
+    doc.moveDown(1.5);
 
-    const qrSize = 260;
-    const x = (doc.page.width - qrSize) / 2;
-    doc.image(imgBuffer, x, doc.y, { width: qrSize });
+    // tamaño grande del QR
+    const qrSize = 320; // más grande que antes
+    // posición X centrada
+    const qrX = (doc.page.width - qrSize) / 2;
+    // posición Y fija para que no se encime con encabezado
+    const qrY = doc.y; // ya después del texto anterior
 
-    doc.moveDown(2);
-    doc.fontSize(42).text(codigo, { align: "center" });
+    // Dibuja el QR
+    doc.image(imgBuffer, qrX, qrY, { width: qrSize });
+
+    // Calculamos nueva Y (debajo del QR)
+    const afterQrY = qrY + qrSize + 30;
+    doc.moveTo(50, afterQrY - 10); // línea suave opcional
+    doc.moveDown(0.2);
+
+    // Texto del código bien grande, centrado y SIN encimar el QR
+    doc.y = afterQrY;
+    doc.fontSize(48).text(codigo, { align: "center" });
 
     doc.end();
   } catch (err) {

@@ -1,11 +1,6 @@
 // src/pages/MenuAdmin.jsx
 // =======================================================
 // SAL-UPP — Panel Admin (Revisión de Asistencias)
-//  - Muestra clases con estado de horario y de registro
-//  - Filtro por día, laboratorio y docente
-//  - Botón "Actualizar" con diseño
-//  - Lista de clases con scroll para que los botones
-//    de abajo NO se muevan
 // =======================================================
 
 import { useEffect, useMemo, useState } from "react";
@@ -222,7 +217,6 @@ export default function MenuAdmin() {
             {itemsFiltrados.map((it) => (
               <div
                 className="class-card"
-                // 🔧 FIX: key estable, sin NaN/undefined
                 key={`${it.id || 0}-${it.dia_num || 0}-${it.hora_ini || "00:00"}`}
               >
                 <div className="class-row">
@@ -292,6 +286,7 @@ export default function MenuAdmin() {
           >
             Configurar
           </button>
+          {/* AQUÍ EL CAMBIO: ahora va a /admin/perfil, que usa PerfilPage */}
           <button
             className="btn-secondary-ghost"
             onClick={() => nav("/admin/perfil")}

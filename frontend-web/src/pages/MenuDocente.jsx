@@ -5,36 +5,37 @@ import StatusBadge from "../components/StatusBadge";
 import "./menu.css";
 import { clearSession } from "../state/auth";
 
-export default function MenuDocente(){
+export default function MenuDocente() {
   const nav = useNavigate();
   const [clases, setClases] = useState(null); // null = cargando
 
- useEffect(() => {
-  (async () => {
-    try {
-      const { data } = await api.get("/docentes/clases-hoy");
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await api.get("/docentes/clases-hoy");
 
-      const adaptadas = (data.clases || []).map((c) => ({
-        id: c.id,
-        materia: c.materia,
-        lab: c.lab_nombre,
-        estado: "Programada",
-        dia: "",
-        hora: `${c.hora_ini} - ${c.hora_fin}`,
-        extra: c.grupo ? `Grupo ${c.grupo}` : null,
-      }));
+        const adaptadas = (data.clases || []).map((c) => ({
+          id: c.id,
+          materia: c.materia,
+          lab: c.lab_nombre,
+          estado: "Programada",
+          dia: "",
+          hora: `${c.hora_ini} - ${c.hora_fin}`,
+          extra: c.grupo ? `Grupo ${c.grupo}` : null,
+        }));
 
-      setClases(adaptadas);
-    } catch (err) {
-      console.error(err);
-      setClases([]);
-    }
-  })();
-}, []);
+        setClases(adaptadas);
+      } catch (err) {
+        console.error(err);
+        setClases([]);
+      }
+    })();
+  }, []);
 
-
-
-  const logout = () => { clearSession(); nav("/login", { replace:true }); };
+  const logout = () => {
+    clearSession();
+    nav("/login", { replace: true });
+  };
 
   return (
     <div className="page-shell">
@@ -44,7 +45,10 @@ export default function MenuDocente(){
           <div className="menu-sub">Docente</div>
         </div>
 
-        <button className="big-action" onClick={()=>nav("/docente/asistencia")}>
+        <button
+          className="big-action"
+          onClick={() => nav("/docente/asistencia")}
+        >
           Escanear QR
         </button>
         <Link className="link-code" to="/docente/codigo">
@@ -55,16 +59,22 @@ export default function MenuDocente(){
           <h3>Tus clases de hoy</h3>
 
           {clases === null && <div className="empty">Cargando…</div>}
-          {clases?.length === 0 && <div className="empty">Sin clases programadas para hoy.</div>}
+          {clases?.length === 0 && (
+            <div className="empty">Sin clases programadas para hoy.</div>
+          )}
 
-          {clases?.map(c=>(
+          {clases?.map((c) => (
             <div className="class-card" key={c.id}>
               <div className="class-row">
-                <div className="class-title">{c.lab} {c.materia}</div>
-                <StatusBadge kind={c.estado} text={c.estado}/>
+                <div className="class-title">
+                  {c.lab} {c.materia}
+                </div>
+                <StatusBadge kind={c.estado} text={c.estado} />
               </div>
               <div className="class-row">
-                <div className="class-sub">{c.dia} {c.hora}</div>
+                <div className="class-sub">
+                  {c.dia} {c.hora}
+                </div>
                 {c.extra && <button className="btn-pill">{c.extra}</button>}
               </div>
             </div>
@@ -72,15 +82,27 @@ export default function MenuDocente(){
         </div>
 
         <div className="grid-2">
-          <Link className="btn-secondary-ghost btn-secondary" to="/docente/historial">Historial...</Link>
-          <Link className="btn-secondary" to="/docente/perfil">Perfil</Link>
+          <Link
+            className="btn-secondary-ghost btn-secondary"
+            to="/docente/historial"
+          >
+            Historial...
+          </Link>
+          {/* AQUÍ EL CAMBIO: ahora va a /docente/perfil, que usa PerfilPage */}
+          <Link className="btn-secondary" to="/docente/perfil">
+            Perfil
+          </Link>
         </div>
 
-        <div style={{marginTop:12}}>
-          <Link className="btn-wide" to="/docente/incidente">Reportar incidente</Link>
+        <div style={{ marginTop: 12 }}>
+          <Link className="btn-wide" to="/docente/incidente">
+            Reportar incidente
+          </Link>
         </div>
 
-        <button className="logout" onClick={logout}>Cerrar sesión</button>
+        <button className="logout" onClick={logout}>
+          Cerrar sesión
+        </button>
       </div>
     </div>
   );

@@ -1,0 +1,362 @@
+/* ==========================================================
+   SAL-UPP — ADMIN UI (2025)
+   Estilos profesionales para MenuAdmin.jsx
+   ========================================================== */
+
+/* Reset general */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Inter", sans-serif;
+}
+
+/* CONTENEDOR GENERAL */
+.page-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 32px 16px;
+  background: #e5e7f0;
+}
+
+/* CARD PRINCIPAL */
+.menu-card {
+  width: 100%;
+  max-width: 520px;
+  background: #ffffff;
+  border-radius: 30px;
+  padding: 24px 24px 20px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
+}
+
+/* ENCABEZADO */
+.menu-head {
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.menu-head .brand {
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: 0.06em;
+  color: #22223b;
+}
+
+.menu-head .menu-sub {
+  font-size: 12px;
+  color: #8a8ca3;
+}
+
+/* BLOQUE PRINCIPAL */
+.block {
+  margin-top: 10px;
+  padding: 14px 16px 16px;
+  background: #f5f7ff;
+  border-radius: 22px;
+}
+
+.block h3 {
+  font-size: 16px;
+  text-align: center;
+  margin-bottom: 8px;
+  color: #22223b;
+}
+
+/* FILTROS */
+.filters-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.filter-input {
+  flex: 1;
+  border-radius: 999px;
+  border: 1px solid #d7d8e6;
+  padding: 7px 12px;
+  font-size: 13px;
+  outline: none;
+  background-color: #ffffff;
+}
+
+.filter-input:focus {
+  border-color: #5b2a86;
+}
+
+/* Botón "Actualizar" */
+.filter-refresh {
+  border-radius: 999px;
+  border: none;
+  padding: 7px 14px;
+  font-size: 13px;
+  background: linear-gradient(135deg, #5b2a86, #8a2be2);
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+  min-width: 110px;
+  box-shadow: 0 4px 10px rgba(91, 42, 134, 0.4);
+  transition: transform 0.08s ease-out, box-shadow 0.08s ease-out,
+    opacity 0.1s ease-out;
+}
+
+.filter-refresh:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(91, 42, 134, 0.5);
+}
+
+.filter-refresh:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 3px 8px rgba(91, 42, 134, 0.4);
+}
+
+.filter-refresh:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+/* Texto de ayuda bajo filtros */
+.filters-hint {
+  font-size: 12px;
+  text-align: center;
+  color: #8a8ca3;
+  margin: 4px 0 8px;
+}
+
+/* LISTA CON SCROLL INTERNO */
+.class-list {
+  max-height: 360px; /* Controla la altura visible */
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.class-list::-webkit-scrollbar {
+  width: 6px;
+}
+.class-list::-webkit-scrollbar-thumb {
+  background: #c4c6de;
+  border-radius: 999px;
+}
+
+/* TARJETAS DE CLASE */
+.class-card {
+  background: #e8f1ff;
+  border-radius: 18px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+
+.class-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.class-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #22223b;
+}
+
+.class-sub {
+  font-size: 12px;
+  font-weight: 600;
+  color: #22223b;
+}
+
+/* Estado + día */
+.class-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.class-meta-estado {
+  color: #4b5563;
+}
+
+.class-meta-dia {
+  color: #6b21a8;
+  font-weight: 600;
+}
+
+/* Docente */
+.docente-tag {
+  margin-top: 3px;
+  font-size: 11px;
+  color: #374151;
+}
+
+/* REGISTRO (sin registrar, registrado, etc.) */
+.registro-tag {
+  margin-top: 4px;
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 4px 8px;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Colores según estado de registro */
+.registro-sin_registrar {
+  background: #fff7ed;
+  color: #92400e;
+}
+
+.registro-registrado {
+  background: #ecfdf3;
+  color: #166534;
+}
+
+.registro-tardio {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.registro-no_asistio {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.registro-registro_invitado {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.registro-main {
+  font-weight: 600;
+}
+
+.registro-detalle {
+  opacity: 0.9;
+}
+
+/* BADGE DE ESTADO (StatusBadge) */
+.status-badge {
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-en-curso {
+  background: #ffebc2;
+  color: #92400e;
+}
+
+.status-proxima {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.status-impartida {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+/* BOTÓN PRINCIPAL "Gestionar" */
+.big-action {
+  margin-top: 12px;
+  width: 100%;
+  border-radius: 18px;
+  border: none;
+  padding: 10px 16px;
+  background: #3c096c;
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(60, 9, 108, 0.35);
+  transition: transform 0.08s ease-out, box-shadow 0.08s ease-out;
+}
+
+.big-action:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(60, 9, 108, 0.45);
+}
+
+/* GRID DE BOTONES INFERIORES */
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.btn-secondary {
+  border-radius: 14px;
+  border: none;
+  padding: 9px 12px;
+  background: #4b1d8f;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(75, 29, 143, 0.35);
+  transition: opacity 0.1s ease-out, transform 0.08s ease-out;
+}
+
+.btn-secondary:hover {
+  opacity: 0.95;
+  transform: translateY(-1px);
+}
+
+.btn-secondary-ghost {
+  border-radius: 14px;
+  border: 1px solid #4b1d8f;
+  padding: 9px 12px;
+  background: transparent;
+  color: #4b1d8f;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.1s ease-out, color 0.1s ease-out;
+}
+
+.btn-secondary-ghost:hover {
+  background: #4b1d8f;
+  color: #ffffff;
+}
+
+/* LOGOUT */
+.logout {
+  margin-top: 8px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: #7c3aed;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Mensajes vacíos */
+.empty {
+  font-size: 12px;
+  color: #6b7280;
+  text-align: center;
+  padding: 8px 0;
+}
+
+/* ============================================
+   (Opcional) Clases antiguas que ya tenías
+   — las dejo por compatibilidad, no estorban
+   ============================================ */
+
+.admin-layout {
+  width: 100%;
+  min-height: 100vh;
+  background: #e6e8ef;
+  padding: 30px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ...resto de clases viejas que no afectan: puedes dejarlas o borrarlas
+   si ya no las usas en ningún otro componente. */

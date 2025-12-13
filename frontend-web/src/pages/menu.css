@@ -720,6 +720,68 @@ input, select {
 
 
 
+/* =========================================================
+   AJUSTE FINO DESKTOP — evitar layout "estirado"
+   ========================================================= */
+
+@media (min-width: 1024px){
+
+  /* El contenedor ya no empuja tanto en vertical */
+  .page-shell{
+    place-items: start center;
+    padding: 24px 48px;
+  }
+
+  /* Card principal: ancho sí, alto natural */
+  .page-shell .menu-card{
+    max-width: 1100px;
+    padding: 22px 28px;
+    border-radius: 26px;
+  }
+
+  /* Botones grandes SOLO en móvil, no en desktop */
+  .page-shell .big-action{
+    height: 72px;          /* antes 96px */
+    font-size: 18px;
+  }
+
+  /* Botones secundarios menos altos */
+  .page-shell .btn-secondary,
+  .page-shell .btn-wide{
+    height: 48px;          /* antes 56px */
+    font-size: 15px;
+  }
+
+  /* Bloques con menos aire vertical */
+  .page-shell .block{
+    padding: 14px 16px;
+  }
+
+  /* Tarjetas internas más compactas */
+  .page-shell .class-card{
+    padding: 10px 12px;
+  }
+
+  /* Texto de secciones */
+  .page-shell .block h3{
+    font-size: 18px;
+    margin-bottom: 8px;
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

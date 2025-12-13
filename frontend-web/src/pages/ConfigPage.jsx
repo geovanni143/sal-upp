@@ -9,27 +9,46 @@ export default function ConfigPage() {
   };
 
   const goQR = () => {
-    nav("/admin/generar-qr");  // 👈 YA REDIRIGE A LA PÁGINA CORRECTA
+    nav("/admin/generar-qr");
   };
 
   return (
     <div className="page-shell">
       <div className="menu-card smooth-card" style={{ maxWidth: 520 }}>
         <div className="top-header">
-          <button className="btn-back" onClick={() => nav(-1)}>← Regresar</button>
+          <button
+            className="btn-back"
+            onClick={() => nav(-1)}
+          >
+            ← Regresar
+          </button>
           <h1>Configuración</h1>
         </div>
 
-        <div className="vertical-actions">
-          <button className="big-action" onClick={goParams}>
+        {/* ACCIONES VERTICALES */}
+        <div
+          className="vertical-actions"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px",     // 👈 separación real entre botones
+            marginTop: "14px"
+          }}
+        >
+          <button
+            className="big-action"
+            onClick={goParams}
+          >
             Par&aacute;metros del Sistema
           </button>
 
-          <button className="big-action" onClick={goQR}>
+          <button
+            className="big-action"
+            onClick={goQR}
+          >
             Generar QR/Código
           </button>
         </div>
-
       </div>
     </div>
   );

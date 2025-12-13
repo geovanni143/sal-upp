@@ -1,0 +1,301 @@
+.perfil-page-shell {
+  min-height: 100vh;
+  width: 100%;
+  background: #f1f2f4;
+  display: flex;
+  justify-content: center;
+  padding: 32px 16px;
+}
+
+.perfil-shell {
+  width: 100%;
+  max-width: 520px;
+  background: #e3e5e8;
+  border-radius: 28px;
+  padding: 28px 26px 32px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+}
+
+/* TITULOS */
+.perfil-titulo {
+  text-align: center;
+  font-size: 26px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.perfil-rol {
+  text-align: center;
+  font-size: 14px;
+  color: #6a5acd;
+  margin-bottom: 10px;
+}
+
+.perfil-subtitulo {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 18px;
+}
+
+/* AVATAR */
+.perfil-avatar-container {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.perfil-avatar-img {
+  width: 120px;
+  height: 120px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 3px solid #4b1d8f;
+  background: white;
+}
+
+.perfil-avatar-input {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 6px 16px;
+  background: #4b1d8f;
+  color: white;
+  font-size: 13px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.perfil-avatar-input input {
+  display: none;
+}
+
+/* CARD INFO */
+.perfil-info {
+  background: white;
+  padding: 16px 18px;
+  border-radius: 18px;
+  margin-bottom: 18px;
+}
+
+.perfil-info p {
+  font-size: 14px;
+  margin: 6px 0;
+}
+
+/* BOTONES PRINCIPALES */
+.perfil-boton {
+  width: 100%;
+  padding: 12px;
+  background: #3e0e6a;
+  color: white;
+  border: none;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.perfil-boton-secundario {
+  width: 100%;
+  padding: 11px;
+  margin-top: 10px;
+  background: #cfcfcf;
+  border: none;
+  border-radius: 999px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* MODAL */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+}
+
+.modal-box {
+  background: white;
+  width: 100%;
+  max-width: 460px;
+  border-radius: 20px;
+  padding: 22px;
+}
+
+.modal-title {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+
+.modal-box input {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+}
+
+/* FILA CONTRASEÑA + BOTÓN VER */
+.pass-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.pass-row input {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.pass-row button {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: none;
+  background: #ececff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* BOTONES MODAL */
+.modal-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.btn-cancelar {
+  background: #e5e5e5;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.btn-guardar {
+  background: #3e0e6a;
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+/* RESPONSIVE */
+@media (max-width: 480px) {
+  .perfil-page-shell {
+    padding: 0;
+  }
+
+  .perfil-shell {
+    border-radius: 0;
+    min-height: 100vh;
+  }
+
+  .modal-box {
+    max-width: 100%;
+    border-radius: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .modal-box input,
+  .pass-row {
+    max-width: 100%;
+  }
+}
+
+
+
+
+
+
+
+/* =========================================
+   FORZAR PERFIL A PANTALLA COMPLETA
+   (rompe cualquier layout padre)
+========================================= */
+.perfil-page-shell {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  z-index: 1;
+}
+
+/* =========================================
+   FORZAR CONTENEDOR CENTRAL
+========================================= */
+.perfil-shell {
+  margin: 0 auto !important;
+  min-height: calc(100vh - 64px);
+  width: 100%;
+  max-width: 520px;
+}
+
+/* =========================================
+   FORZAR MODAL A VIEWPORT REAL
+========================================= */
+.modal-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 9999 !important;
+}
+
+/* =========================================
+   MODAL RESPONSIVE REAL
+========================================= */
+.modal-box {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+/* =========================================
+   MOBILE: PERFIL FULL SCREEN
+========================================= */
+@media (max-width: 600px) {
+  .perfil-shell {
+    max-width: 100% !important;
+    border-radius: 0 !important;
+    min-height: 100vh;
+  }
+
+  .modal-box {
+    width: 100% !important;
+    height: 100vh !important;
+    border-radius: 0 !important;
+  }
+}
+
+
+/* ===============================
+   ROMPER LAYOUT PADRE
+================================ */
+#root,
+#root > *,
+.app-shell,
+.page-shell {
+  max-width: none !important;
+  width: 100vw !important;
+}
+
+/* PERFIL SIEMPRE FULL */
+.perfil-page-shell {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: #f1f2f4;
+  overflow-y: auto;
+  z-index: 999;
+}
