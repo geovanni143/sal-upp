@@ -1,4 +1,13 @@
 // src/pages/MenuAdmin.jsx
+// =======================================================
+// SAL-UPP — Panel Admin (Revisión de Asistencias)
+//  - Muestra clases con estado de horario y de registro
+//  - Filtro por día, laboratorio y docente
+//  - Botón "Actualizar" con diseño
+//  - Lista de clases con scroll para que los botones
+//    de abajo NO se muevan
+// =======================================================
+
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
@@ -6,7 +15,7 @@ import StatusBadge from "../components/StatusBadge";
 import "./menu.css";
 import { clearSession } from "../state/auth";
 
-// Helpers locales de día
+/* Día para combo */
 const DIA_LABEL = {
   1: "Lunes",
   2: "Martes",
@@ -16,15 +25,13 @@ const DIA_LABEL = {
 };
 
 function getTodayDiaNumero() {
-  const dow = new Date().getDay(); // 0=Dom,...6=Sab
-  if (dow >= 1 && dow <= 5) return dow;
-  return 1;
+  const dow = new Date().getDay();
+  return dow >= 1 && dow <= 5 ? dow : 1;
 }
 
 function buildDiaOptions() {
   const today = getTodayDiaNumero();
-
-  const base = [
+  return [
     { id: "hoy", label: `Hoy (${DIA_LABEL[today]})` },
     { id: 1, label: "Lunes" },
     { id: 2, label: "Martes" },
@@ -33,13 +40,6 @@ function buildDiaOptions() {
     { id: 5, label: "Viernes" },
     { id: "semana", label: "Todos los días (Semana)" },
   ];
-
-  // Evitar duplicar el día en el que estamos, ej. Hoy (Lunes) + Lunes
-  return base.filter((opt) => {
-    if (opt.id === "hoy") return true;
-    if (typeof opt.id === "number" && opt.id === today) return false;
-    return true;
-  });
 }
 
 export default function MenuAdmin() {
@@ -47,17 +47,16 @@ export default function MenuAdmin() {
 
   const [diaSel, setDiaSel] = useState("hoy");
   const [labSel, setLabSel] = useState("todos");
-  const [docSel, setDocSel] = useState("todos");
+  const [docFiltro, setDocFiltro] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const [items, setItems] = useState(null); // respuesta de backend
-  const [verTodo, setVerTodo] = useState(false); // false -> rango 3 horas
-
+  const [items, setItems] = useState(null);
   const [labs, setLabs] = useState([]);
   const [docs, setDocs] = useState([]);
 
   const diaOptions = useMemo(() => buildDiaOptions(), []);
 
-  // Cargar catálogo de labs y docentes para filtros
+  // ---------------- Cargar labs + docentes ----------------
   useEffect(() => {
     (async () => {
       try {
@@ -66,183 +65,212 @@ export default function MenuAdmin() {
           api.get("/users?roles=docente,admin,superadmin"),
         ]);
 
-        const labsArr = Array.isArray(labsRes.data) ? labsRes.data : labsRes.data.items || [];
-        const docsArr = Array.isArray(docsRes.data) ? docsRes.data : docsRes.data.items || [];
+        const labsData = Array.isArray(labsRes.data)
+          ? labsRes.data
+          : labsRes.data.items || [];
 
-        setLabs(labsArr);
-        setDocs(docsArr);
+        const docsData = Array.isArray(docsRes.data)
+          ? docsRes.data
+          : docsRes.data.items || [];
+
+        setLabs(labsData);
+        setDocs(docsData);
       } catch (err) {
-        console.error("Error cargando filtros (labs/docs):", err);
+        console.error("Error cargando filtros:", err);
         setLabs([]);
         setDocs([]);
       }
     })();
   }, []);
 
-  // Cargar asistencias del día seleccionado
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data } = await api.get("/admin/asistencias-dia", {
-          params: { dia: diaSel },
-        });
-        setItems(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error("Error cargando asistencias-dia:", err);
-        setItems([]);
-      }
-    })();
-  }, [diaSel]);
+  // ---------------- Cargar clases desde backend ----------------
+  const cargarClases = async () => {
+    try {
+      setLoading(true);
+      const params = { dia: diaSel };
+      if (labSel !== "todos") params.lab_id = labSel;
 
+      const { data } = await api.get("/admin/asistencias-dia", { params });
+      setItems(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Error cargando asistencias:", err);
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    cargarClases();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [diaSel, labSel]);
+
+  // ---------------- Filtros en front ----------------
+  const itemsFiltrados = useMemo(() => {
+    if (!Array.isArray(items)) return [];
+
+    let out = [...items];
+
+    if (labSel !== "todos") {
+      out = out.filter((x) => Number(x.lab_id) === Number(labSel));
+    }
+
+    const busq = docFiltro.trim().toLowerCase();
+    if (busq) {
+      out = out.filter((x) => (x.docente || "").toLowerCase().includes(busq));
+    }
+
+    // Orden: en curso → próxima → impartida; luego por día y hora
+    const tipoOrden = { en_curso: 1, proxima: 2, impartida: 3 };
+
+    out.sort((a, b) => {
+      const ta = tipoOrden[a.estado_codigo] || 99;
+      const tb = tipoOrden[b.estado_codigo] || 99;
+      if (ta !== tb) return ta - tb;
+
+      // por día (1..5) y luego por hora_ini
+      if (a.dia_num !== b.dia_num) return a.dia_num - b.dia_num;
+      return String(a.hora_ini).localeCompare(String(b.hora_ini));
+    });
+
+    return out;
+  }, [items, labSel, docFiltro]);
+
+  // ---------------- Logout ----------------
   const logout = () => {
     clearSession();
     nav("/login-admin", { replace: true });
   };
 
-  // Aplicar filtros (laboratorio / docente / rango 3h vs todo el día)
-  const itemsFiltrados = useMemo(() => {
-    if (!Array.isArray(items)) return [];
+  // Texto resumen
+  const tituloRango =
+    diaSel === "semana"
+      ? "Mostrando todas las clases de la semana"
+      : "Mostrando todas las clases del día seleccionado";
 
-    let out = items;
-
-    if (labSel !== "todos") {
-      const labIdNum = Number(labSel);
-      out = out.filter((it) => Number(it.lab_id) === labIdNum);
-    }
-
-    if (docSel !== "todos") {
-      const docIdNum = Number(docSel);
-      out = out.filter((it) => Number(it.docente_id || 0) === docIdNum);
-    }
-
-    if (!verTodo) {
-      // Solo rango de 3 horas: En curso + Próxima
-      out = out.filter(
-        (it) =>
-          String(it.estado).toLowerCase() === "en curso" ||
-          String(it.estado).toLowerCase() === "próxima" ||
-          String(it.estado).toLowerCase() === "proxima"
-      );
-    }
-
-    return out;
-  }, [items, labSel, docSel, verTodo]);
-
-  const limpiarFiltros = () => {
-    setLabSel("todos");
-    setDocSel("todos");
-  };
-
-  const tituloRango = verTodo
-    ? "Mostrando TODAS las clases del día seleccionado"
-    : "Mostrando clases en curso y próximas (rango 3 horas)";
-
+  // ---------------- Render ----------------
   return (
     <div className="page-shell">
-      <div className="menu-card" style={{ maxWidth: 520 }}>
-        {/* Encabezado */}
+      <div className="menu-card">
+        {/* HEADER */}
         <div className="menu-head">
           <div className="brand">SAL-UPP</div>
           <div className="menu-sub">Administración</div>
         </div>
 
-        {/* Bloque de asistencias hoy */}
-        <div className="block" style={{ marginTop: 8 }}>
-          <h3>Revisión de Asistencias hoy</h3>
+        {/* BLOQUE PRINCIPAL */}
+        <div className="block">
+          <h3>Revisión de Asistencias</h3>
 
-          {/* Filtros */}
+          {/* FILTROS */}
           <div className="filters-row">
             <select
-              className="filter-input"
               value={diaSel}
               onChange={(e) => setDiaSel(e.target.value)}
+              className="filter-input"
             >
-              {diaOptions.map((opt) => (
-                <option key={opt.id} value={opt.id}>
-                  {opt.label}
+              {diaOptions.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.label}
                 </option>
               ))}
             </select>
 
             <select
-              className="filter-input"
               value={labSel}
               onChange={(e) => setLabSel(e.target.value)}
+              className="filter-input"
             >
               <option value="todos">Todos los laboratorios</option>
-              {labs.map((lab) => (
-                <option key={lab.id} value={lab.id}>
-                  {lab.nombre}
+              {labs.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.nombre}
                 </option>
               ))}
             </select>
           </div>
 
-          <div className="filters-row" style={{ marginTop: 6 }}>
-            <select
+          <div className="filters-row">
+            <input
+              type="text"
               className="filter-input"
-              value={docSel}
-              onChange={(e) => setDocSel(e.target.value)}
+              placeholder="Buscar docente…"
+              value={docFiltro}
+              onChange={(e) => setDocFiltro(e.target.value)}
+            />
+            <button
+              className="filter-refresh"
+              onClick={cargarClases}
+              disabled={loading}
             >
-              <option value="todos">Todos los docentes</option>
-              {docs.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.nombre} {u.apellidos || ""}
-                </option>
-              ))}
-            </select>
-
-            <button className="filter-clear" onClick={limpiarFiltros}>
-              Limpiar
+              {loading ? "Actualizando…" : "Actualizar"}
             </button>
           </div>
 
-          {/* Botón rango 3h / todo el día */}
-          <button
-            className="filter-toggle"
-            onClick={() => setVerTodo((v) => !v)}
-          >
-            {verTodo ? "Ver solo rango de 3 horas" : "Ver todo el día"}
-          </button>
-
           <div className="filters-hint">{tituloRango}</div>
 
-          {/* Lista / estados */}
-          {items === null && <div className="empty">Cargando…</div>}
+          {/* LISTA (con scroll interno) */}
+          <div className="class-list">
+            {items === null && <div className="empty">Cargando…</div>}
 
-          {items !== null && itemsFiltrados.length === 0 && (
-            <div className="empty">No hay clases para los filtros seleccionados.</div>
-          )}
-
-          {itemsFiltrados.map((it) => (
-            <div className="class-card" key={it.id}>
-              <div className="class-row">
-                <div className="class-title">
-                  {it.lab} — {it.materia}
-                </div>
-                <StatusBadge kind={it.estado} text={it.estado} />
+            {items !== null && itemsFiltrados.length === 0 && (
+              <div className="empty">
+                No hay clases para los filtros seleccionados.
               </div>
-              <div className="class-row">
+            )}
+
+            {itemsFiltrados.map((it) => (
+              <div
+                className="class-card"
+                // 🔧 FIX: key estable, sin NaN/undefined
+                key={`${it.id || 0}-${it.dia_num || 0}-${it.hora_ini || "00:00"}`}
+              >
+                <div className="class-row">
+                  <div className="class-title">
+                    {it.lab} — {it.materia}
+                  </div>
+                  <StatusBadge kind={it.estado_codigo} text={it.estado} />
+                </div>
+
                 <div className="class-sub">
-                  {it.dia} {it.hora_ini} - {it.hora_fin}
+                  {it.hora_ini} — {it.hora_fin}
+                </div>
+
+                <div className="class-meta-row">
+                  <span className="class-meta-estado">{it.texto_estado}</span>
+                  <span className="class-meta-dia">{it.dia}</span>
+                </div>
+
+                {it.docente && (
+                  <div className="docente-tag">{it.docente}</div>
+                )}
+
+                {/* Estado de registro */}
+                <div
+                  className={`registro-tag registro-${it.registro_codigo}`}
+                >
+                  <span className="registro-main">{it.registro}</span>
+                  {it.registro_detalle && (
+                    <span className="registro-detalle">
+                      {" — "}
+                      {it.registro_detalle}
+                    </span>
+                  )}
                 </div>
               </div>
-              {it.docente && (
-                <div style={{ fontSize: 12, color: "#667", marginTop: 2 }}>
-                  {it.docente}
-                </div>
-              )}
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
-        {/* Acción principal */}
-        <button className="big-action" onClick={() => nav("/admin/gestionar")}>
+        {/* ACCIONES */}
+        <button
+          className="big-action"
+          onClick={() => nav("/admin/gestionar")}
+        >
           Gestionar
         </button>
 
-        {/* Accesos rápidos */}
-        <div className="grid-2" style={{ marginTop: 12 }}>
+        <div className="grid-2">
           <button
             className="btn-secondary"
             onClick={() => nav("/admin/incidentes")}
@@ -257,7 +285,7 @@ export default function MenuAdmin() {
           </button>
         </div>
 
-        <div className="grid-2" style={{ marginTop: 12 }}>
+        <div className="grid-2">
           <button
             className="btn-secondary-ghost"
             onClick={() => nav("/admin/config")}
@@ -272,7 +300,7 @@ export default function MenuAdmin() {
           </button>
         </div>
 
-        <button className="logout" onClick={logout} style={{ marginTop: 16 }}>
+        <button className="logout" onClick={logout}>
           Cerrar sesión
         </button>
       </div>

@@ -4,9 +4,13 @@ import "./menu.css";
 export default function ConfigPage() {
   const nav = useNavigate();
 
-  // Solo UI. Cuando tengas backend, aquí pegas los fetch/submit.
-  const goQR = () => alert("Generar QR/Código (pendiente backend)");
-  const goParams = () => alert("Parámetros del sistema (pendiente backend)");
+  const goParams = () => {
+    nav("/admin/parametros");
+  };
+
+  const goQR = () => {
+    nav("/admin/generar-qr");  // 👈 YA REDIRIGE A LA PÁGINA CORRECTA
+  };
 
   return (
     <div className="page-shell">
@@ -17,11 +21,15 @@ export default function ConfigPage() {
         </div>
 
         <div className="vertical-actions">
-          <button className="big-action" onClick={goParams}>Parámetros del Sistema</button>
-          <button className="big-action" onClick={goQR}>Generar QR/Código</button>
+          <button className="big-action" onClick={goParams}>
+            Par&aacute;metros del Sistema
+          </button>
+
+          <button className="big-action" onClick={goQR}>
+            Generar QR/Código
+          </button>
         </div>
 
-  
       </div>
     </div>
   );

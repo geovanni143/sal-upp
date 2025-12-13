@@ -1,26 +1,34 @@
-// backend/src/services/db.js
-import mysql from "mysql2/promise";
+import 'dotenv/config';
+import mysql from 'mysql2/promise';
 
-export const pool = mysql.createPool({
-  host: process.env.DB_HOST || "127.0.0.1",
-  user: process.env.DB_USER || "root",
-  password: process.env.DB_PASS || "",
-  database: process.env.DB_NAME || "sal_upp",
-  waitForConnections: true,
+const DB_HOST = process.env.DB_HOST || 'localhost';
+const DB_PORT = Number(process.env.DB_PORT || 3306);
+
+// 👇 Acepta DB_PASSWORD (nuevo) y DB_PASS (viejo)
+const DB_USER = process.env.DB_USER || 'root';
+const DB_PASSWORD =
+  process.env.DB_PASSWORD !== undefined
+    ? process.env.DB_PASSWORD
+    : (process.env.DB_PASS || '');
+
+const DB_NAME = process.env.DB_NAME || 'sal_upp';
+
+console.log("=====================================");
+console.log(" Conectando a MySQL con:");
+console.log(" HOST:", DB_HOST);
+console.log(" PORT:", DB_PORT);
+console.log(" USER:", DB_USER);
+console.log(" PASSWORD:", DB_PASSWORD === "" ? "(vacía)" : "(oculta)");
+console.log(" DB:", DB_NAME);
+console.log("=====================================");
+
+// Crea el pool
+export const pool = await mysql.createPool({
+  host: DB_HOST,
+  port: DB_PORT,
+  user: DB_USER,
+  password: DB_PASSWORD,
+  database: DB_NAME,
   connectionLimit: 10,
-  queueLimit: 0,
+  namedPlaceholders: true
 });
-
-// Helpers opcionales (compatibilidad con imports 'default')
-const db = {
-  async query(sql, params = []) {
-    const [rows] = await pool.query(sql, params);
-    return rows;
-  },
-  async exec(sql, params = []) {
-    const [result] = await pool.execute(sql, params);
-    return result;
-  },
-};
-
-export default db;

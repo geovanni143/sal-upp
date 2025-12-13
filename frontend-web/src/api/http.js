@@ -1,89 +1,99 @@
 // src/api/http.js
 import axios from "axios";
 
-/* ===== Base Axios (anti-CORS en dev) ===== */
-const DEV = import.meta.env.DEV;
-let base = import.meta.env.VITE_API_URL || "/api";
-if (DEV && /^https?:\/\//i.test(base)) base = "/api";
-const BASE = base.replace(/\/+$/, "");
+/* ================================
+   BASE URL
+================================ */
+const BASE =
+  import.meta.env.VITE_API_URL?.replace(/\/+$/, "") ||
+  "http://localhost:3000/api";  // Asegúrate de que esta URL sea la correcta
 
-export const api = axios.create({
+export const http = axios.create({
   baseURL: BASE,
   withCredentials: true,
 });
 
-/* ====== Incluir token en cada request ====== */
-api.interceptors.request.use((config) => {
-  let t =
+/* ================================
+   TOKEN GLOBAL
+================================ */
+http.interceptors.request.use((config) => {
+  const token =
     localStorage.getItem("token") ||
-    sessionStorage.getItem("token") ||
-    null;
+    sessionStorage.getItem("token");
 
-  if (t && t !== "null" && t !== "undefined" && t.trim() !== "") {
-    config.headers.Authorization = `Bearer ${t}`;
+  if (token && token !== "null" && token !== "undefined") {
+    config.headers.Authorization = `Bearer ${token}`;
   }
 
   return config;
 });
 
-/* ============= Catálogos ============= */
-export const periodosApi = {
-  list:         (params)   => api.get("/periodos", { params }),
-  create:       (data)     => api.post("/periodos", data),
-  update:       (id, data) => api.put(`/periodos/${id}`, data),
-  toggleActive: (id)       => api.patch(`/periodos/${id}/activo`),
-  remove:       (id)       => api.delete(`/periodos/${id}`),
-  restore:      (id)       => api.patch(`/periodos/${id}/restaurar`),
-};
-
-export const labsApi = {
-  list:         (params)   => api.get("/labs", { params }),
-  create:       (data)     => api.post("/labs", data),
-  update:       (id, data) => api.put(`/labs/${id}`, data),
-  toggleActive: (id)       => api.patch(`/labs/${id}/activo`),
-  remove:       (id)       => api.delete(`/labs/${id}`),
-  restore:      (id)       => api.patch(`/labs/${id}/restaurar`),
-};
-
+/* ================================
+   API: USERS
+================================ */
 export const usersApi = {
-  list:   (params)   => api.get("/users", { params }), // ?roles=docente,admin,superadmin
-  create: (data)     => api.post("/users", data),
-  update: (id, data) => api.put(`/users/${id}`, data),
-  remove: (id)       => api.delete(`/users/${id}`),
+  list: (params) => http.get("/users", { params }),
+
+  // *** NECESARIO PARA PERFIL ***
+  get: (id) => http.get(`/users/${id}`),
+
+  create: (data) => http.post("/users", data),
+  update: (id, data) => http.put(`/users/${id}`, data),
+  remove: (id) => http.delete(`/users/${id}`),
 };
 
-/* ============= Horarios ============= */
+/* ================================
+   API: LABS
+================================ */
+export const labsApi = {
+  list: (params) => http.get("/labs", { params }),
+  create: (data) => http.post("/labs", data),
+  update: (id, data) => http.put(`/labs/${id}`, data),
+  toggleActive: (id) => http.patch(`/labs/${id}/activo`),
+  remove: (id) => http.delete(`/labs/${id}`),
+  restore: (id) => http.patch(`/labs/${id}/restaurar`),
+};
+
+/* ================================
+   API: PERIODOS
+================================ */
+export const periodosApi = {
+  list: (params) => http.get("/periodos", { params }),
+  create: (data) => http.post("/periodos", data),
+  update: (id, data) => http.put(`/periodos/${id}`, data),
+  toggleActive: (id) => http.patch(`/periodos/${id}/activo`),
+  remove: (id) => http.delete(`/periodos/${id}`),
+  restore: (id) => http.patch(`/periodos/${id}/restaurar`),
+};
+
+/* ================================
+   API: HORARIOS
+================================ */
 export const horariosApi = {
-  catalogo: (params) =>
-    api.get("/horarios/catalogo", { params }),
-
-  semana: (params) =>
-    api.get("/horarios/semana", { params }),
-
-  bulk: (body) =>
-    api.post("/horarios/bulk", body),
+  catalogo: (params) => http.get("/horarios/catalogo", { params }),
+  semana: (params) => http.get("/horarios/semana", { params }),
+  bulk: (body) => http.post("/horarios/bulk", body),
 
   activar: ({ periodo_id, lab_id }) =>
-    api.patch(`/horarios/catalogo/${periodo_id}/${lab_id}/activar`),
+    http.patch(`/horarios/catalogo/${periodo_id}/${lab_id}/activar`),
 
   desactivar: ({ periodo_id, lab_id }) =>
-    api.patch(`/horarios/catalogo/${periodo_id}/${lab_id}/desactivar`),
+    http.patch(`/horarios/catalogo/${periodo_id}/${lab_id}/desactivar`),
 
   eliminar: ({ periodo_id, lab_id }) =>
-    api.delete(`/horarios/catalogo/${periodo_id}/${lab_id}`),
+    http.delete(`/horarios/catalogo/${periodo_id}/${lab_id}`),
 
-  // 🔥 eliminación PERMANENTE de horarios ya marcados como eliminados
   eliminarHard: ({ periodo_id, lab_id }) =>
-    api.delete(`/horarios/catalogo/${periodo_id}/${lab_id}/hard`),
+    http.delete(`/horarios/catalogo/${periodo_id}/${lab_id}/hard`),
 
   restore: ({ periodo_id, lab_id }) =>
-    api.post(`/horarios/catalogo/${periodo_id}/${lab_id}/restore`),
+    http.post(`/horarios/catalogo/${periodo_id}/${lab_id}/restore`),
 
   pdf: (params) =>
-    api.get("/horarios/pdf", {
+    http.get("/horarios/pdf", {
       params,
       responseType: "blob",
     }),
 };
 
-export default api;
+export default http;
