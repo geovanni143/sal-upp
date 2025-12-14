@@ -78,7 +78,7 @@ export default function QRGenerator() {
 
   // Descargar PDF
   const descargarPDF = () => {
-    const url = `http://localhost:3000/api/horarios/qr-pdf?periodo_id=${qrInfo.periodo_id}&lab_id=${qrInfo.lab_id}`;
+    const url = `http://localhost:4000/api/horarios/qr-pdf?periodo_id=${qrInfo.periodo_id}&lab_id=${qrInfo.lab_id}`;
     window.open(url, "_blank");
   };
 

@@ -3,6 +3,38 @@ import { Router } from "express";
 import { pool } from "../services/db.js";
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
+import multer from "multer";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// backend/uploads/asistencias
+const ASIST_DIR = path.join(__dirname, "..", "..", "uploads", "asistencias");
+if (!fs.existsSync(ASIST_DIR)) fs.mkdirSync(ASIST_DIR, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, ASIST_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || "");
+    const safeExt = ext || (file.mimetype === "image/png" ? ".png" : ".jpg");
+    const name = `${Date.now()}-${Math.round(Math.random() * 1e9)}${safeExt}`;
+    cb(null, name);
+  },
+});
+
+const fileFilter = (_req, file, cb) => {
+  const ok = ["image/jpeg", "image/jpg", "image/png"].includes(file.mimetype);
+  cb(ok ? null : new Error("invalid_file_type"), ok);
+};
+
+const uploadEvidencia = multer({
+  storage,
+  fileFilter,
+  limits: { fileSize: 6 * 1024 * 1024 }, // 6MB
+});
 
 const r = Router();
 
@@ -970,6 +1002,7 @@ r.post("/qr/validar-escaneo", async (req, res) => {
     const [rows] = await pool.query(
       `
       SELECT 
+        h.id,
         h.periodo_id,
         h.lab_id,
         h.dia,
@@ -1085,6 +1118,342 @@ r.post("/qr/validar-escaneo", async (req, res) => {
     res.status(500).json({ ok: false, msg: "server_error" });
   }
 });
+
+/* =========================================================
+   REGISTRAR ASISTENCIA POR QR
+   POST /api/horarios/qr/registrar
+   body: { codigo, docente_id, invitado_nombre? }
+   ========================================================= */
+r.post("/qr/registrar", async (req, res) => {
+  try {
+    const { codigo, docente_id, invitado_nombre } = req.body || {};
+    const testMode = String(req.query?.test || req.body?.test || "") === "1";
+
+    if (!codigo) return res.status(400).json({ ok: false, msg: "missing_code" });
+
+    const [rows] = await pool.query(
+      `
+      SELECT 
+        h.id,
+        h.periodo_id,
+        h.lab_id,
+        h.dia,
+        DATE_FORMAT(h.hora_ini,'%H:%i') AS hora_ini,
+        DATE_FORMAT(h.hora_fin,'%H:%i') AS hora_fin,
+        h.docente_id,
+        p.nombre AS periodo_nombre,
+        DATE_FORMAT(p.fecha_ini,'%Y-%m-%d') AS periodo_ini,
+        DATE_FORMAT(p.fecha_fin,'%Y-%m-%d') AS periodo_fin,
+        l.nombre AS lab_nombre
+      FROM horarios h
+      JOIN periodos p ON p.id = h.periodo_id
+      JOIN labs     l ON l.id = h.lab_id
+      WHERE h.codigo_qr=? AND IFNULL(h.eliminado,0)=0 AND h.activo=1
+      `,
+      [codigo]
+    );
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ ok: false, msg: "invalid_code" });
+    }
+
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    const currentHHMM = now.toTimeString().slice(0, 5);
+    const currentDay = diaActualNumero(); // 1..7
+
+    const meta = {
+      periodo_id: rows[0].periodo_id,
+      lab_id: rows[0].lab_id,
+      periodo_ini: rows[0].periodo_ini,
+      periodo_fin: rows[0].periodo_fin,
+      periodo_nombre: rows[0].periodo_nombre,
+      lab_nombre: rows[0].lab_nombre,
+    };
+
+    if (!isTodayBetween(meta.periodo_ini, meta.periodo_fin)) {
+      return res.status(400).json({ ok: false, msg: "out_of_period", meta });
+    }
+
+    // =========================
+    // MODO PRUEBA (test=1)
+    // =========================
+    let rowsHoy = [];
+    if (testMode) {
+      rowsHoy = rows; // no filtra por día
+    } else {
+      const diaFilter = currentDay >= 1 && currentDay <= 5 ? currentDay : null;
+      rowsHoy = diaFilter ? rows.filter((r) => normalizarDiaDB(r.dia) === diaFilter) : [];
+      if (!rowsHoy.length) {
+        return res.status(400).json({ ok: false, msg: "no_class_today", meta });
+      }
+    }
+
+    let bloquesHora = [];
+    if (testMode) {
+      bloquesHora = rowsHoy; // no filtra por hora
+    } else {
+      const tNow = toMin(currentHHMM);
+      bloquesHora = rowsHoy.filter((r) => {
+        const ini = toMin(r.hora_ini);
+        const fin = toMin(r.hora_fin);
+        return tNow >= ini && tNow < fin;
+      });
+
+      if (!bloquesHora.length) {
+        return res.status(400).json({
+          ok: false,
+          msg: "out_of_schedule_time",
+          meta,
+          current_time: currentHHMM,
+        });
+      }
+    }
+
+    // Validación docente: en testMode valida que el docente exista en algún bloque del código
+    if (docente_id) {
+      const docenteValido = bloquesHora.some(
+        (b) => Number(b.docente_id) === Number(docente_id)
+      );
+      if (!docenteValido) {
+        return res.status(403).json({ ok: false, msg: "wrong_teacher", meta });
+      }
+    }
+
+    // Elegir el bloque correcto para guardar horario_id
+    const chosen =
+      docente_id
+        ? bloquesHora.find((b) => Number(b.docente_id) === Number(docente_id)) || bloquesHora[0]
+        : bloquesHora[0];
+
+    const horario_id = chosen.id;
+
+    // Evitar duplicado
+    if (docente_id) {
+      const [dup] = await pool.query(
+        `
+        SELECT id FROM asistencias
+        WHERE horario_id=? AND docente_id=? AND fecha=?
+        LIMIT 1
+        `,
+        [horario_id, docente_id, todayStr]
+      );
+
+      if (dup.length) {
+        return res.status(409).json({
+          ok: false,
+          msg: "already_registered",
+          meta,
+          fecha: todayStr,
+        });
+      }
+    }
+
+    // Insert
+    await pool.query(
+      `
+      INSERT INTO asistencias
+        (horario_id, docente_id, invitado_nombre, periodo_id, fecha, hora_registro, estado)
+      VALUES
+        (?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        horario_id,
+        docente_id || null,
+        invitado_nombre || null,
+        meta.periodo_id,
+        todayStr,
+        currentHHMM + ":00",
+        "pendiente",
+      ]
+    );
+
+    return res.json({
+      ok: true,
+      msg: "attendance_registered",
+      meta,
+      fecha: todayStr,
+      hora: currentHHMM,
+      estado: "pendiente",
+      testMode,
+    });
+  } catch (err) {
+    console.error("POST /horarios/qr/registrar:", err);
+    res.status(500).json({ ok: false, msg: "server_error" });
+  }
+});
+
+
+r.post(
+  "/qr/registrar-evidencia",
+  uploadEvidencia.fields([
+    { name: "foto", maxCount: 1 },
+    { name: "firma", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    try {
+      const { codigo, docente_id } = req.body || {};
+      const testMode = String(req.query?.test || req.body?.test || "") === "1";
+
+      const foto = req.files?.foto?.[0];
+      const firma = req.files?.firma?.[0];
+
+      if (!codigo) return res.status(400).json({ ok: false, msg: "missing_code" });
+      if (!docente_id) return res.status(400).json({ ok: false, msg: "missing_docente_id" });
+      if (!foto) return res.status(400).json({ ok: false, msg: "missing_foto" });
+      if (!firma) return res.status(400).json({ ok: false, msg: "missing_firma" });
+
+      const [rows] = await pool.query(
+        `
+        SELECT 
+          h.id,
+          h.periodo_id,
+          h.lab_id,
+          h.dia,
+          DATE_FORMAT(h.hora_ini,'%H:%i') AS hora_ini,
+          DATE_FORMAT(h.hora_fin,'%H:%i') AS hora_fin,
+          h.docente_id,
+          p.nombre AS periodo_nombre,
+          DATE_FORMAT(p.fecha_ini,'%Y-%m-%d') AS periodo_ini,
+          DATE_FORMAT(p.fecha_fin,'%Y-%m-%d') AS periodo_fin,
+          l.nombre AS lab_nombre
+        FROM horarios h
+        JOIN periodos p ON p.id = h.periodo_id
+        JOIN labs     l ON l.id = h.lab_id
+        WHERE h.codigo_qr=? AND IFNULL(h.eliminado,0)=0 AND h.activo=1
+        `,
+        [codigo]
+      );
+
+      if (!rows || rows.length === 0) {
+        return res.status(404).json({ ok: false, msg: "invalid_code" });
+      }
+
+      const now = new Date();
+      const todayStr = now.toISOString().slice(0, 10);
+      const currentHHMM = now.toTimeString().slice(0, 5);
+      const currentDay = diaActualNumero(); // 1..7
+
+      const meta = {
+        periodo_id: rows[0].periodo_id,
+        lab_id: rows[0].lab_id,
+        periodo_ini: rows[0].periodo_ini,
+        periodo_fin: rows[0].periodo_fin,
+        periodo_nombre: rows[0].periodo_nombre,
+        lab_nombre: rows[0].lab_nombre,
+      };
+
+      if (!isTodayBetween(meta.periodo_ini, meta.periodo_fin)) {
+        return res.status(400).json({ ok: false, msg: "out_of_period", meta });
+      }
+
+      // =========================
+      // MODO PRUEBA (test=1)
+      // =========================
+      let rowsHoy = [];
+      if (testMode) {
+        rowsHoy = rows;
+      } else {
+        const diaFilter = currentDay >= 1 && currentDay <= 5 ? currentDay : null;
+        rowsHoy = diaFilter ? rows.filter((r) => normalizarDiaDB(r.dia) === diaFilter) : [];
+        if (!rowsHoy.length) {
+          return res.status(400).json({ ok: false, msg: "no_class_today", meta });
+        }
+      }
+
+      let bloquesHora = [];
+      if (testMode) {
+        bloquesHora = rowsHoy;
+      } else {
+        const tNow = toMin(currentHHMM);
+        bloquesHora = rowsHoy.filter((r) => {
+          const ini = toMin(r.hora_ini);
+          const fin = toMin(r.hora_fin);
+          return tNow >= ini && tNow < fin;
+        });
+
+        if (!bloquesHora.length) {
+          return res.status(400).json({
+            ok: false,
+            msg: "out_of_schedule_time",
+            meta,
+            current_time: currentHHMM,
+          });
+        }
+      }
+
+      const docenteValido = bloquesHora.some(
+        (b) => Number(b.docente_id) === Number(docente_id)
+      );
+      if (!docenteValido) {
+        return res.status(403).json({ ok: false, msg: "wrong_teacher", meta });
+      }
+
+      const chosen =
+        bloquesHora.find((b) => Number(b.docente_id) === Number(docente_id)) || bloquesHora[0];
+
+      const horario_id = chosen.id;
+
+      const [dup] = await pool.query(
+        `
+        SELECT id FROM asistencias
+        WHERE horario_id=? AND docente_id=? AND fecha=?
+        LIMIT 1
+        `,
+        [horario_id, docente_id, todayStr]
+      );
+      if (dup.length) {
+        return res.status(409).json({
+          ok: false,
+          msg: "already_registered",
+          meta,
+          fecha: todayStr,
+        });
+      }
+
+      const foto_url = `/uploads/asistencias/${foto.filename}`;
+      const firma_url = `/uploads/asistencias/${firma.filename}`;
+
+      const [ins] = await pool.query(
+        `
+        INSERT INTO asistencias
+          (horario_id, docente_id, invitado_nombre, periodo_id, fecha, hora_registro, estado, foto_url, firma_url)
+        VALUES
+          (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          horario_id,
+          Number(docente_id),
+          null,
+          meta.periodo_id,
+          todayStr,
+          currentHHMM + ":00",
+          "pendiente",
+          foto_url,
+          firma_url,
+        ]
+      );
+
+      return res.json({
+        ok: true,
+        msg: "attendance_registered",
+        asistencia_id: ins.insertId,
+        meta,
+        fecha: todayStr,
+        hora: currentHHMM,
+        estado: "pendiente",
+        foto_url,
+        firma_url,
+        testMode,
+      });
+    } catch (err) {
+      console.error("POST /horarios/qr/registrar-evidencia:", err);
+      res.status(500).json({ ok: false, msg: "server_error" });
+    }
+  }
+);
+
+
 
 /* =========================================================
    SANITY CHECK
