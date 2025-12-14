@@ -13,37 +13,60 @@ export default function LoginDocente() {
   const [loading, setL] = useState(false);
   const [err, setErr] = useState("");
 
+  /* =========================
+     AUTO REDIRECT SI YA HAY SESIÓN
+  ========================= */
   useEffect(() => {
     const t = getToken();
     const r = getRole();
     if (t && r) nav(redirectByRole(r), { replace: true });
   }, [nav]);
 
+  /* =========================
+     LOGIN NORMAL (DOCENTE / SUPERADMIN)
+  ========================= */
   async function submit(e) {
     e.preventDefault();
-    setErr(""); setL(true);
+    setErr("");
+    setL(true);
+
     try {
       const { data } = await api.post("/login", { username, password });
-      if (!data?.token || !data?.user) throw new Error("Respuesta inválida del servidor");
+
+      if (!data?.token || !data?.user) {
+        throw new Error("Respuesta inválida del servidor");
+      }
 
       const rol = data.user.rol || data.user.role;
 
-      // Esta pantalla: DOCENTE y SUPERADMIN (superadmin puede entrar aquí también)
+      // Esta pantalla es SOLO para docente / superadmin
       if (!(rol === "docente" || rol === "superadmin")) {
-        setErr("Esta pantalla es solo para DOCENTE. Si eres administrador entra por 'Iniciar como admi'.");
+        setErr(
+          "Este acceso es solo para docentes. Si eres administrador, usa 'Iniciar como admin'."
+        );
         return;
       }
 
-      saveSession({ token: data.token, user: data.user }, { remember });
+      saveSession(
+        { token: data.token, user: data.user },
+        { remember }
+      );
+
       nav(redirectByRole(rol), { replace: true });
     } catch (ex) {
-      const msg = ex?.response?.data?.error || ex?.message || "Error al iniciar sesión";
+      const msg =
+        ex?.response?.data?.error ||
+        ex?.message ||
+        "Error al iniciar sesión";
       setErr(msg);
     } finally {
       setL(false);
     }
   }
 
+  /* =========================
+     UI
+  ========================= */
   return (
     <div className="page-login">
       <div className="login-card" role="dialog" aria-labelledby="title">
@@ -51,30 +74,69 @@ export default function LoginDocente() {
 
         <form className="form" onSubmit={submit}>
           <label className="label" htmlFor="user">Usuario</label>
-          <input id="user" className="input" value={username} onChange={e=>setU(e.target.value)} required />
+          <input
+            id="user"
+            className="input"
+            value={username}
+            onChange={(e) => setU(e.target.value)}
+            required
+          />
 
           <label className="label" htmlFor="pass">Contraseña</label>
-          <input id="pass" className="input" type="password" value={password} onChange={e=>setP(e.target.value)} required />
+          <input
+            id="pass"
+            className="input"
+            type="password"
+            value={password}
+            onChange={(e) => setP(e.target.value)}
+            required
+          />
 
           <div className="row">
             <label className="chk">
-              <input type="checkbox" checked={remember} onChange={e=>setR(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => setR(e.target.checked)}
+              />
               Recuérdame
             </label>
-            <Link className="link" to="/recuperar">¿Olvidaste tu contraseña?</Link>
+            <Link className="link" to="/recuperar">
+              ¿Olvidaste tu contraseña?
+            </Link>
           </div>
 
-          <button className="btn-primary" disabled={loading}>{loading ? "Entrando..." : "Entrar"}</button>
+          <button className="btn-primary" disabled={loading}>
+            {loading ? "Entrando..." : "Entrar"}
+          </button>
 
-          {err && <small className="error-msg" role="alert">{err}</small>}
+          {err && (
+            <small className="error-msg" role="alert">
+              {err}
+            </small>
+          )}
 
           <hr className="hr" />
+
+          {/* ===== ACCESOS ALTERNATIVOS ===== */}
           <div className="secondary-links">
-            <Link className="link" to="/login-admin">Iniciar como admi</Link>
-            <Link className="link" to="/registro">¿No tienes acceso? Solicitar registro</Link>
+            <Link className="link" to="/login-admin">
+              Iniciar como admin
+            </Link>
+
+            {/* 🔹 TEXTO CORREGIDO Y COHERENTE */}
+            <Link className="link" to="/invitado/registro">
+              ¿Eres invitado o docente externo? Registrar acceso
+            </Link>
           </div>
+
           <div className="reportar-btn-container">
-            <Link to="/reportar-incidencia" className="btn-secondary as-link">Reportar Incidencia</Link>
+            <Link
+              to="/reportar-incidencia"
+              className="btn-secondary as-link"
+            >
+              Reportar Incidencia
+            </Link>
           </div>
         </form>
       </div>

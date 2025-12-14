@@ -9,12 +9,15 @@ import { fileURLToPath } from "url";
 // ===============================
 import authRoutes from "./routes/auth.routes.js";
 import usersRoutes from "./routes/users.routes.js";
+import historialRoutes from "./routes/historial.routes.js";
+
 import labsRoutes from "./routes/labs.routes.js";
 import periodosRoutes from "./routes/periodos.routes.js";
 import horariosRoutes from "./routes/horarios.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import asistenciasRoutes from "./routes/asistencias.routes.js";
 import meRoutes from "./routes/me.routes.js";
+import invitadosRoutes from "./routes/invitados.routes.js";
 import docentesRoutes from "./routes/docentes.routes.js";
 import incidentesRoutes from "./routes/incidentes.routes.js";
 
@@ -44,6 +47,7 @@ app.use(
 // JSON
 // ===============================
 app.use(express.json());
+app.use("/api/invitados", invitadosRoutes);
 
 // ===============================
 // ARCHIVOS ESTÁTICOS
@@ -63,7 +67,7 @@ app.use("/api/asistencias", asistenciasRoutes);
 app.use("/api/me", meRoutes);
 app.use("/api/docentes", docentesRoutes);
 app.use("/api/incidentes", incidentesRoutes);
-
+app.use("/api/historial", historialRoutes);
 // ===============================
 // HEALTH CHECK
 // ===============================
