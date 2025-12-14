@@ -137,6 +137,9 @@ export default function PerfilPage() {
         {/* AVATAR */}
         <div className="perfil-avatar-container">
           <img src={avatarURL} className="perfil-avatar-img" alt="Avatar" />
+        <br></br>
+
+
           <label className="perfil-avatar-input">
             Cambiar foto
             <input type="file" accept="image/*" onChange={subirAvatar} />

@@ -24,8 +24,26 @@
 
 import { Router } from "express";
 import { pool } from "../services/db.js";
+import PDFDocument from "pdfkit";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
 
 const r = Router();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// backend/uploads/asistencias
+const UPLOADS_ASISTENCIAS_DIR = path.join(__dirname, "..", "..", "uploads", "asistencias");
+
+function localPathFromPublicUrl(publicUrl) {
+  if (!publicUrl) return null;
+  const file = path.basename(publicUrl); // "/uploads/asistencias/xxx.jpg" -> "xxx.jpg"
+  const full = path.join(UPLOADS_ASISTENCIAS_DIR, file);
+  return fs.existsSync(full) ? full : null;
+}
 
 /* Helpers reusados */
 
@@ -274,6 +292,183 @@ r.get("/historial-docente", async (req, res) => {
   } catch (err) {
     console.error("GET /api/asistencias/historial-docente:", err);
     return res.status(500).json({ ok: false, msg: "server_error", items: [] });
+  }
+});
+
+/* =======================================================
+   PDF HISTORIAL DOCENTE (incluye evidencias)
+   GET /api/asistencias/historial-docente-pdf?docente_id=&from=&to=&lab_id=&lab=
+   ======================================================= */
+r.get("/historial-docente-pdf", async (req, res) => {
+  try {
+    const { docente_id, from, to, lab_id, lab } = req.query;
+
+    if (!docente_id) {
+      return res.status(400).json({ ok: false, msg: "missing_docente_id" });
+    }
+
+    // Defaults: últimos 30 días
+    const now = new Date();
+    const toDefault = toDateStr(now);
+    const fromDate = new Date(now);
+    fromDate.setDate(fromDate.getDate() - 30);
+    const fromDefault = toDateStr(fromDate);
+
+    const dateFrom = from || fromDefault;
+    const dateTo = to || toDefault;
+
+    let extraSql = "";
+    const params = [Number(docente_id), dateFrom, dateTo];
+
+    if (lab_id) {
+      extraSql += " AND h.lab_id = ? ";
+      params.push(Number(lab_id));
+    } else if (lab && String(lab).trim()) {
+      extraSql += " AND l.nombre LIKE ? ";
+      params.push(`%${String(lab).trim()}%`);
+    }
+
+    const [rows] = await pool.query(
+      `
+      SELECT
+        a.id,
+        a.horario_id,
+        a.docente_id,
+        a.periodo_id,
+        DATE_FORMAT(a.fecha,'%Y-%m-%d') AS fecha,
+        DATE_FORMAT(a.hora_registro,'%H:%i:%s') AS hora_registro,
+        a.estado,
+        a.foto_url,
+        a.firma_url,
+
+        h.lab_id,
+        l.nombre AS lab_nombre,
+        h.materia,
+        h.grupo,
+        h.dia,
+        DATE_FORMAT(h.hora_ini,'%H:%i') AS hora_ini,
+        DATE_FORMAT(h.hora_fin,'%H:%i') AS hora_fin
+      FROM asistencias a
+      JOIN horarios h ON h.id = a.horario_id
+      JOIN labs l ON l.id = h.lab_id
+      WHERE a.docente_id = ?
+        AND a.fecha BETWEEN ? AND ?
+        AND IFNULL(h.eliminado,0)=0
+        ${extraSql}
+      ORDER BY a.fecha DESC, a.hora_registro DESC
+      `,
+      params
+    );
+
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+
+    // Headers PDF
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="historial-docente-${docente_id}-${dateFrom}_a_${dateTo}.pdf"`
+    );
+
+    const doc = new PDFDocument({ size: "LETTER", margin: 40 });
+    doc.pipe(res);
+
+    // Encabezado
+    doc.fontSize(14).text("SAL-UPP", { align: "center" });
+    doc.moveDown(0.3);
+    doc.fontSize(12).text("Historial de Asistencias (Docente)", { align: "center" });
+
+    doc.moveDown(0.6);
+    doc.fontSize(10).text(`Docente ID: ${docente_id}`);
+    doc.fontSize(10).text(`Rango: ${dateFrom} a ${dateTo}`);
+    if (lab_id) doc.fontSize(10).text(`Filtro lab_id: ${lab_id}`);
+    if (lab && String(lab).trim()) doc.fontSize(10).text(`Filtro laboratorio: ${String(lab).trim()}`);
+
+    doc.moveDown(0.8);
+    doc.fontSize(10).text(`Total registros: ${rows.length}`);
+
+    doc.moveDown(0.8);
+    doc.moveTo(40, doc.y).lineTo(doc.page.width - 40, doc.y).stroke();
+    doc.moveDown(0.6);
+
+    // Control: si hay demasiados registros, incrustar imágenes puede hacer el PDF enorme.
+    // Estrategia: si hay <= 15, incrustamos; si no, solo links.
+    const embedImages = rows.length <= 15;
+
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+
+      const titulo = `${r.lab_nombre || "Lab"}${r.materia ? " — " + r.materia : ""}${r.grupo ? " (" + r.grupo + ")" : ""}`;
+      const subt = `${r.fecha} ${r.hora_registro || ""} · ${r.dia || ""} ${r.hora_ini || ""}-${r.hora_fin || ""}`;
+      const estado = String(r.estado || "");
+
+      // Salto de página si queda poco espacio
+      if (doc.y > doc.page.height - 220) {
+        doc.addPage();
+      }
+
+      doc.fontSize(11).text(titulo, { continued: false });
+      doc.fontSize(9).text(subt);
+      doc.fontSize(10).text(`Estado: ${estado}`);
+
+      // Evidencias (links)
+      const fotoPublic = r.foto_url ? `${baseUrl}${r.foto_url}` : null;
+      const firmaPublic = r.firma_url ? `${baseUrl}${r.firma_url}` : null;
+
+      doc.moveDown(0.2);
+      doc.fontSize(9).text("Evidencias:");
+
+      doc.fontSize(9);
+      if (fotoPublic) {
+        doc.fillColor("blue").text(`Foto: ${fotoPublic}`, { link: fotoPublic, underline: true });
+        doc.fillColor("black");
+      } else {
+        doc.text("Foto: (sin evidencia)");
+      }
+
+      if (firmaPublic) {
+        doc.fillColor("blue").text(`Firma: ${firmaPublic}`, { link: firmaPublic, underline: true });
+        doc.fillColor("black");
+      } else {
+        doc.text("Firma: (sin evidencia)");
+      }
+
+      // Evidencias (incrustadas)
+      if (embedImages) {
+        const fotoLocal = localPathFromPublicUrl(r.foto_url);
+        const firmaLocal = localPathFromPublicUrl(r.firma_url);
+
+        // Espacio
+        doc.moveDown(0.3);
+
+        // Dibujo en dos columnas (foto y firma)
+        const colW = (doc.page.width - 80 - 10) / 2; // 40 margin each side + gap 10
+        const leftX = 40;
+        const rightX = 40 + colW + 10;
+        const startY = doc.y;
+
+        if (fotoLocal) {
+          doc.fontSize(9).text("Foto", leftX, startY);
+          doc.image(fotoLocal, leftX, startY + 12, { fit: [colW, 180] });
+        }
+
+        if (firmaLocal) {
+          doc.fontSize(9).text("Firma", rightX, startY);
+          doc.image(firmaLocal, rightX, startY + 12, { fit: [colW, 180] });
+        }
+
+        // Ajusta Y abajo de las imágenes
+        doc.y = startY + 12 + 190;
+      }
+
+      doc.moveDown(0.6);
+      doc.moveTo(40, doc.y).lineTo(doc.page.width - 40, doc.y).stroke();
+      doc.moveDown(0.6);
+    }
+
+    doc.end();
+  } catch (err) {
+    console.error("GET /api/asistencias/historial-docente-pdf:", err);
+    res.status(500).json({ ok: false, msg: "server_error" });
   }
 });
 
