@@ -183,4 +183,99 @@ r.post("/registrar", async (req, res) => {
   }
 });
 
+/* =======================================================
+   HISTORIAL DE ASISTENCIAS POR DOCENTE
+   GET /api/asistencias/historial-docente?docente_id=&from=&to=&lab_id=&lab=
+   - from/to opcional (YYYY-MM-DD). Default: últimos 30 días.
+   - lab_id opcional (num) o lab opcional (texto, filtra por nombre)
+   ======================================================= */
+
+r.get("/historial-docente", async (req, res) => {
+  try {
+    const { docente_id, from, to, lab_id, lab } = req.query;
+
+    if (!docente_id) {
+      return res.status(400).json({ ok: false, msg: "missing_docente_id", items: [] });
+    }
+
+    // Defaults: últimos 30 días
+    const now = new Date();
+    const toDefault = toDateStr(now);
+    const fromDate = new Date(now);
+    fromDate.setDate(fromDate.getDate() - 30);
+    const fromDefault = toDateStr(fromDate);
+
+    const dateFrom = from || fromDefault;
+    const dateTo = to || toDefault;
+
+    let extraSql = "";
+    const params = [Number(docente_id), dateFrom, dateTo];
+
+    if (lab_id) {
+      extraSql += " AND h.lab_id = ? ";
+      params.push(Number(lab_id));
+    } else if (lab && String(lab).trim()) {
+      extraSql += " AND l.nombre LIKE ? ";
+      params.push(`%${String(lab).trim()}%`);
+    }
+
+    const [rows] = await pool.query(
+      `
+      SELECT
+        a.id,
+        a.horario_id,
+        a.docente_id,
+        a.periodo_id,
+        DATE_FORMAT(a.fecha,'%Y-%m-%d') AS fecha,
+        DATE_FORMAT(a.hora_registro,'%H:%i:%s') AS hora_registro,
+        a.estado,
+        a.foto_url,
+        a.firma_url,
+
+        h.lab_id,
+        l.nombre AS lab_nombre,
+        h.materia,
+        h.grupo,
+        h.dia,
+        DATE_FORMAT(h.hora_ini,'%H:%i') AS hora_ini,
+        DATE_FORMAT(h.hora_fin,'%H:%i') AS hora_fin
+      FROM asistencias a
+      JOIN horarios h ON h.id = a.horario_id
+      JOIN labs l ON l.id = h.lab_id
+      WHERE a.docente_id = ?
+        AND a.fecha BETWEEN ? AND ?
+        AND IFNULL(h.eliminado,0)=0
+        ${extraSql}
+      ORDER BY a.fecha DESC, a.hora_registro DESC
+      `,
+      params
+    );
+
+    const items = rows.map((r) => ({
+      id: r.id,
+      fecha: r.fecha,
+      hora_registro: r.hora_registro,
+      estado: r.estado,
+      foto_url: r.foto_url || null,
+      firma_url: r.firma_url || null,
+      horario: {
+        id: r.horario_id,
+        lab_id: r.lab_id,
+        lab_nombre: r.lab_nombre,
+        materia: r.materia || "",
+        grupo: r.grupo || "",
+        dia: r.dia,
+        hora_ini: r.hora_ini,
+        hora_fin: r.hora_fin,
+      },
+    }));
+
+    return res.json({ ok: true, items });
+  } catch (err) {
+    console.error("GET /api/asistencias/historial-docente:", err);
+    return res.status(500).json({ ok: false, msg: "server_error", items: [] });
+  }
+});
+
+
 export default r;
