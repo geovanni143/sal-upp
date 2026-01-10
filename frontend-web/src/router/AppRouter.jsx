@@ -1,3 +1,4 @@
+// src/router/AppRouter.jsx
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 
@@ -29,6 +30,9 @@ import IncidentesPage from "../pages/IncidentesPage.jsx";
 import HistorialPage from "../pages/HistorialPage.jsx";
 import ConfigPage from "../pages/ConfigPage.jsx";
 
+// ✅ NUEVO: Parámetros
+import ParametrosPage from "../pages/ParametrosPage.jsx";
+
 // Perfil
 import PerfilPage from "../pages/PerfilPage.jsx";
 
@@ -36,6 +40,9 @@ import PerfilPage from "../pages/PerfilPage.jsx";
 import QRGenerator from "../pages/QRGenerator.jsx";
 import Dashboard from "../pages/Dashboard.jsx";
 import ReportarIncidencias from "../pages/ReportarIncidencias.jsx";
+
+// Invitado
+import InvitadoRegistro from "../pages/InvitadoRegistro.jsx";
 
 import { getToken, getRole } from "../state/auth";
 import { redirectByRole } from "../utils/redirectByRole";
@@ -68,23 +75,22 @@ export default function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
-
-        {/* ======================
-            APP CON LAYOUT <App />
-        ====================== */}
+        {/* APP CON LAYOUT <App /> */}
         <Route path="/" element={<App />}>
-
-          {/* ---------- PUBLIC ---------- */}
+          {/* PUBLIC */}
           <Route index element={<Navigate to="/login" replace />} />
           <Route path="login" element={<LoginDocente />} />
           <Route path="login-admin" element={<LoginAdmin />} />
           <Route path="403" element={<Forbidden />} />
           <Route path="reportar-incidencia" element={<ReportarIncidencias />} />
 
-          {/* ---------- HOME REDIRECT ---------- */}
+          {/* Invitado */}
+          <Route path="invitado/registro" element={<InvitadoRegistro />} />
+
+          {/* HOME REDIRECT */}
           <Route path="home" element={<HomeRedirect />} />
 
-          {/* ---------- DASHBOARD (GENÉRICO) ---------- */}
+          {/* DASHBOARD */}
           <Route
             path="dashboard"
             element={
@@ -94,9 +100,7 @@ export default function AppRouter() {
             }
           />
 
-          {/* ======================
-              PERFIL (COMPARTIDO)
-          ====================== */}
+          {/* PERFIL (COMPARTIDO) */}
           <Route
             path="docente/perfil"
             element={
@@ -105,7 +109,6 @@ export default function AppRouter() {
               </PrivateRoute>
             }
           />
-
           <Route
             path="admin/perfil"
             element={
@@ -115,9 +118,7 @@ export default function AppRouter() {
             }
           />
 
-          {/* ======================
-              DOCENTE
-          ====================== */}
+          {/* DOCENTE */}
           <Route
             path="docente"
             element={
@@ -126,7 +127,6 @@ export default function AppRouter() {
               </PrivateRoute>
             }
           />
-
           <Route
             path="docente/asistencia"
             element={
@@ -135,7 +135,6 @@ export default function AppRouter() {
               </PrivateRoute>
             }
           />
-
           <Route
             path="docente/codigo"
             element={
@@ -144,7 +143,6 @@ export default function AppRouter() {
               </PrivateRoute>
             }
           />
-
           <Route
             path="docente/historial"
             element={
@@ -153,7 +151,6 @@ export default function AppRouter() {
               </PrivateRoute>
             }
           />
-
           <Route
             path="docente/incidente"
             element={
@@ -163,9 +160,7 @@ export default function AppRouter() {
             }
           />
 
-          {/* ======================
-              ADMIN
-          ====================== */}
+          {/* ADMIN */}
           <Route
             path="admin"
             element={
@@ -174,7 +169,6 @@ export default function AppRouter() {
               </PrivateRoute>
             }
           />
-
           <Route
             path="admin/gestionar"
             element={
@@ -183,7 +177,6 @@ export default function AppRouter() {
               </PrivateRoute>
             }
           />
-
           <Route
             path="admin/users"
             element={
@@ -192,7 +185,6 @@ export default function AppRouter() {
               </PrivateRoute>
             }
           />
-
           <Route
             path="admin/labs"
             element={
@@ -201,7 +193,6 @@ export default function AppRouter() {
               </PrivateRoute>
             }
           />
-
           <Route
             path="admin/periodos"
             element={
@@ -210,7 +201,6 @@ export default function AppRouter() {
               </PrivateRoute>
             }
           />
-
           <Route
             path="admin/horarios"
             element={
@@ -219,7 +209,6 @@ export default function AppRouter() {
               </PrivateRoute>
             }
           />
-
           <Route
             path="admin/incidentes"
             element={
@@ -228,7 +217,6 @@ export default function AppRouter() {
               </PrivateRoute>
             }
           />
-
           <Route
             path="admin/historial"
             element={
@@ -238,6 +226,7 @@ export default function AppRouter() {
             }
           />
 
+          {/* CONFIG */}
           <Route
             path="admin/config"
             element={
@@ -247,6 +236,17 @@ export default function AppRouter() {
             }
           />
 
+          {/* ✅ PARÁMETROS DEL SISTEMA */}
+          <Route
+            path="admin/parametros"
+            element={
+              <PrivateRoute allow={["admin", "admin_lab", "superadmin"]}>
+                <ParametrosPage />
+              </PrivateRoute>
+            }
+          />
+
+          {/* QR */}
           <Route
             path="admin/generar-qr"
             element={
@@ -255,15 +255,10 @@ export default function AppRouter() {
               </PrivateRoute>
             }
           />
-
         </Route>
 
-        {/* ---------- 404 ---------- */}
-        <Route
-          path="*"
-          element={<h2 style={{ padding: 16 }}>404 — No encontrado</h2>}
-        />
-
+        {/* 404 */}
+        <Route path="*" element={<h2 style={{ padding: 16 }}>404 — No encontrado</h2>} />
       </Routes>
     </BrowserRouter>
   );

@@ -8,13 +8,28 @@ const EMPTY = { id: null, nombre: "", fecha_ini: "", fecha_fin: "" };
 // Normaliza ISO/Date a YYYY-MM-DD (para inputs date)
 const toYMD = (v) => {
   if (!v) return "";
-  // si ya viene 'YYYY-MM-DD' lo recorta; si es ISO/Date lo convierte
   try {
     const d = typeof v === "string" ? new Date(v) : v;
     return d.toISOString().slice(0, 10);
   } catch {
     return String(v).slice(0, 10);
   }
+};
+
+// Estado automático por fechas (front fallback)
+const getEstadoAuto = (fechaIni, fechaFin) => {
+  const fi = toYMD(fechaIni);
+  const ff = toYMD(fechaFin);
+  if (!fi || !ff) return { key: "DESCONOCIDO", label: "Sin fechas", badge: "red" };
+
+  const today = new Date();
+  const t = new Date(today.toISOString().slice(0, 10)); // 00:00 local-ish
+  const ini = new Date(fi);
+  const fin = new Date(ff);
+
+  if (t < ini) return { key: "PROXIMO", label: "Próximo", badge: "red" };
+  if (t > fin) return { key: "FINALIZADO", label: "Finalizado", badge: "red" };
+  return { key: "EN_CURSO", label: "En curso", badge: "green" };
 };
 
 export default function PeriodosPage() {
@@ -42,7 +57,10 @@ export default function PeriodosPage() {
       setLoading(false);
     }
   };
-  useEffect(() => { load(); }, [verEliminados]);
+
+  useEffect(() => {
+    load();
+  }, [verEliminados]);
 
   const limpiar = () => setForm(EMPTY);
 
@@ -52,7 +70,7 @@ export default function PeriodosPage() {
     try {
       const { id, nombre, fecha_ini, fecha_fin } = form;
       if (id) await periodosApi.update(id, { nombre, fecha_ini, fecha_fin });
-      else     await periodosApi.create({ nombre, fecha_ini, fecha_fin });
+      else await periodosApi.create({ nombre, fecha_ini, fecha_fin });
       limpiar();
       await load();
     } catch (e) {
@@ -88,19 +106,6 @@ export default function PeriodosPage() {
       await periodosApi.restore(id);
       await load();
     } catch (e) {
-      alert(e?.response?.data?.error || e.message);
-    }
-  };
-
-  const toggleActivo = async (id) => {
-    try {
-      // actualización optimista
-      setRows((prev) =>
-        prev.map((x) => (x.id === id ? { ...x, activo: x.activo ? 0 : 1 } : x))
-      );
-      await periodosApi.toggleActive(id);
-    } catch (e) {
-      await load(); // deshacer optimismo
       alert(e?.response?.data?.error || e.message);
     }
   };
@@ -154,65 +159,79 @@ export default function PeriodosPage() {
         {error && <p className="error-inline">{error}</p>}
 
         <ul className="manage-list">
-          {list.map((r) => (
-            <li
-              key={r.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                background: "#F7FAFF",
-                borderRadius: 14,
-                padding: "10px 12px",
-                opacity: r.eliminado ? 0.6 : 1,
-              }}
-            >
-              <div style={{ display: "grid", gap: 2 }}>
-                <div style={{ fontWeight: 800 }}>{r.nombre}</div>
-                <div style={{ fontSize: 13, color: "#334155" }}>
-                  {toYMD(r.fecha_ini)} → {toYMD(r.fecha_fin)}
+          {list.map((r) => {
+            // Si backend ya manda estado/activo calculado, úsalo
+            const estadoBackend = r.estado; // "PROXIMO" | "EN_CURSO" | "FINALIZADO"
+            const activoBackend = typeof r.activo === "number" ? r.activo : (r.activo ? 1 : 0);
+
+            // fallback por fechas si no viene estado
+            const auto = getEstadoAuto(r.fecha_ini, r.fecha_fin);
+
+            const estadoKey = estadoBackend || auto.key;
+            const estadoLabel =
+              estadoBackend === "EN_CURSO" ? "En curso"
+              : estadoBackend === "PROXIMO" ? "Próximo"
+              : estadoBackend === "FINALIZADO" ? "Finalizado"
+              : auto.label;
+
+            const badgeClass =
+              r.eliminado ? "amber"
+              : (estadoKey === "EN_CURSO" || activoBackend === 1) ? "green"
+              : "red";
+
+            return (
+              <li
+                key={r.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  background: "#F7FAFF",
+                  borderRadius: 14,
+                  padding: "10px 12px",
+                  opacity: r.eliminado ? 0.6 : 1,
+                }}
+              >
+                <div style={{ display: "grid", gap: 2 }}>
+                  <div style={{ fontWeight: 800 }}>{r.nombre}</div>
+                  <div style={{ fontSize: 13, color: "#334155" }}>
+                    {toYMD(r.fecha_ini)} → {toYMD(r.fecha_fin)}
+                  </div>
                 </div>
-              </div>
 
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                {r.eliminado ? (
-                  <span className="badge amber">Eliminado</span>
-                ) : (
-                  <span className={`badge ${r.activo ? "green" : "red"}`}>
-                    {r.activo ? "Activo" : "Inactivo"}
-                  </span>
-                )}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {r.eliminado ? (
+                    <span className="badge amber">Eliminado</span>
+                  ) : (
+                    <span className={`badge ${badgeClass}`}>
+                      {estadoLabel}
+                    </span>
+                  )}
 
-                {!r.eliminado && (
-                  <>
-                    <button
-                      className="btn icon"
-                      title={r.activo ? "Desactivar" : "Activar"}
-                      onClick={() => toggleActivo(r.id)}
-                    >
-                      {r.activo ? "⏻" : "▶"}
-                    </button>
-                    <button className="btn icon" title="Editar" onClick={() => editar(r)}>
-                      ✎
-                    </button>
-                    <button
-                      className="btn icon danger"
-                      title="Eliminar"
-                      onClick={() => eliminar(r.id)}
-                    >
-                      🗑
-                    </button>
-                  </>
-                )}
+                  {!r.eliminado && (
+                    <>
+                      <button className="btn icon" title="Editar" onClick={() => editar(r)}>
+                        ✎
+                      </button>
+                      <button
+                        className="btn icon danger"
+                        title="Eliminar"
+                        onClick={() => eliminar(r.id)}
+                      >
+                        🗑
+                      </button>
+                    </>
+                  )}
 
-                {r.eliminado && (
-                  <button className="btn icon" title="Restaurar" onClick={() => restaurar(r.id)}>
-                    ⤴
-                  </button>
-                )}
-              </div>
-            </li>
-          ))}
+                  {r.eliminado && (
+                    <button className="btn icon" title="Restaurar" onClick={() => restaurar(r.id)}>
+                      ⤴
+                    </button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
           {!loading && list.length === 0 && <li className="empty">Sin resultados.</li>}
         </ul>
 

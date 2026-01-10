@@ -1,22 +1,34 @@
 import { Router } from "express";
-import { pool } from "../services/db.js";     // usa el mismo pool que en users/labs
-import log from "../middlewares/bitacora.js"; // si aún no lo usas, puedes quitar log(...)
+import { pool } from "../services/db.js";
+import log from "../middlewares/bitacora.js";
 
 const r = Router();
 
 /* Helpers */
 async function getById(id) {
-  // Fechas normalizadas a 'YYYY-MM-DD' para no mandar hora
   const [rows] = await pool.query(
-    `SELECT  id,
-             nombre,
-             DATE_FORMAT(fecha_ini,'%Y-%m-%d')  AS fecha_ini,
-             DATE_FORMAT(fecha_fin,'%Y-%m-%d')  AS fecha_fin,
-             activo,
-             eliminado,
-             eliminado_en
-       FROM periodos
-      WHERE id=?`,
+    `
+    SELECT  id,
+            nombre,
+            DATE_FORMAT(fecha_ini,'%Y-%m-%d')  AS fecha_ini,
+            DATE_FORMAT(fecha_fin,'%Y-%m-%d')  AS fecha_fin,
+            eliminado,
+            eliminado_en,
+            /* Estado automático */
+            CASE
+              WHEN eliminado = 1 THEN 'ELIMINADO'
+              WHEN CURDATE() < fecha_ini THEN 'PROXIMO'
+              WHEN CURDATE() > fecha_fin THEN 'FINALIZADO'
+              ELSE 'EN_CURSO'
+            END AS estado,
+            /* Activo automático */
+            CASE
+              WHEN eliminado = 1 THEN 0
+              WHEN CURDATE() BETWEEN fecha_ini AND fecha_fin THEN 1
+              ELSE 0
+            END AS activo
+      FROM periodos
+     WHERE id=?`,
     [id]
   );
   return rows[0] || null;
@@ -45,9 +57,21 @@ r.get("/", async (req, res) => {
               nombre,
               DATE_FORMAT(fecha_ini,'%Y-%m-%d')  AS fecha_ini,
               DATE_FORMAT(fecha_fin,'%Y-%m-%d')  AS fecha_fin,
-              activo,
               eliminado,
-              eliminado_en
+              eliminado_en,
+              /* Estado automático */
+              CASE
+                WHEN eliminado = 1 THEN 'ELIMINADO'
+                WHEN CURDATE() < fecha_ini THEN 'PROXIMO'
+                WHEN CURDATE() > fecha_fin THEN 'FINALIZADO'
+                ELSE 'EN_CURSO'
+              END AS estado,
+              /* Activo automático */
+              CASE
+                WHEN eliminado = 1 THEN 0
+                WHEN CURDATE() BETWEEN fecha_ini AND fecha_fin THEN 1
+                ELSE 0
+              END AS activo
         FROM periodos
        ${where.length ? "WHERE " + where.join(" AND ") : ""}
        ORDER BY fecha_ini DESC, id DESC`;
@@ -70,9 +94,16 @@ r.post("/", log("periodos:create"), async (req, res) => {
       return res.status(400).json({ error: "La fecha inicio no puede ser mayor que la fecha fin" });
     }
 
+    // activo en DB: 1 solo si hoy está dentro del rango, si no 0
     const [rs] = await pool.execute(
-      "INSERT INTO periodos (nombre,fecha_ini,fecha_fin,activo,eliminado,eliminado_en) VALUES (?,?,?,1,0,NULL)",
-      [nombre.trim(), fecha_ini, fecha_fin]
+      `
+      INSERT INTO periodos (nombre,fecha_ini,fecha_fin,activo,eliminado,eliminado_en)
+      VALUES (
+        ?, ?, ?,
+        CASE WHEN CURDATE() BETWEEN ? AND ? THEN 1 ELSE 0 END,
+        0, NULL
+      )`,
+      [nombre.trim(), fecha_ini, fecha_fin, fecha_ini, fecha_fin]
     );
 
     const row = await getById(rs.insertId);
@@ -86,10 +117,11 @@ r.post("/", log("periodos:create"), async (req, res) => {
 r.put("/:id", log("periodos:update"), async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { nombre, fecha_ini, fecha_fin, activo = 1 } = req.body || {};
+    const { nombre, fecha_ini, fecha_fin } = req.body || {};
     if (!id || !nombre?.trim() || !fecha_ini || !fecha_fin) {
       return res.status(400).json({ error: "Datos inválidos" });
     }
+
     const cur = await getById(id);
     if (!cur || cur.eliminado) return res.status(404).json({ error: "No encontrado" });
 
@@ -98,8 +130,14 @@ r.put("/:id", log("periodos:update"), async (req, res) => {
     }
 
     await pool.execute(
-      "UPDATE periodos SET nombre=?, fecha_ini=?, fecha_fin=?, activo=? WHERE id=?",
-      [nombre.trim(), fecha_ini, fecha_fin, +!!activo, id]
+      `
+      UPDATE periodos
+         SET nombre=?,
+             fecha_ini=?,
+             fecha_fin=?,
+             activo = CASE WHEN CURDATE() BETWEEN ? AND ? THEN 1 ELSE 0 END
+       WHERE id=?`,
+      [nombre.trim(), fecha_ini, fecha_fin, fecha_ini, fecha_fin, id]
     );
 
     const row = await getById(id);
@@ -109,26 +147,17 @@ r.put("/:id", log("periodos:update"), async (req, res) => {
   }
 });
 
-/* TOGGLE ACTIVO — exponemos /activo y /active para compatibilidad */
-async function toggleHandler(req, res) {
-  try {
-    const id = Number(req.params.id);
-    const cur = await getById(id);
-    if (!cur || cur.eliminado) return res.status(404).json({ error: "No encontrado" });
-
-    const nuevo = cur.activo ? 0 : 1;
-    await pool.execute("UPDATE periodos SET activo=? WHERE id=?", [nuevo, id]);
-
-    const row = await getById(id);
-    res.json(row);
-  } catch (e) {
-    res.status(500).json({ error: "Error al cambiar estado", detail: e.message });
-  }
+/* YA NO EXISTE TOGGLE MANUAL (compatibilidad) */
+async function toggleDeprecated(_req, res) {
+  return res.status(400).json({
+    error: "Acción no permitida: el estado es automático por fechas (inicio/fin).",
+    code: "PERIODO_AUTO_ESTADO",
+  });
 }
-r.patch("/:id/activo", log("periodos:toggle"), toggleHandler);
-r.patch("/:id/active", log("periodos:toggle"), toggleHandler); // alias
+r.patch("/:id/activo", log("periodos:toggle"), toggleDeprecated);
+r.patch("/:id/active", log("periodos:toggle"), toggleDeprecated);
 
-/* SOFT-DELETE — bloquea si hay horarios vinculados (FK común) */
+/* SOFT-DELETE — bloquea si hay horarios vinculados */
 r.delete("/:id", log("periodos:delete"), async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -180,10 +209,17 @@ r.patch("/:id/restaurar", log("periodos:restore"), async (req, res) => {
     const cur = await getById(id);
     if (!cur) return res.status(404).json({ error: "No encontrado" });
 
+    // Al restaurar: eliminado=0, y activo en DB se recalcula
     await pool.execute(
-      "UPDATE periodos SET eliminado=0, eliminado_en=NULL, activo=1 WHERE id=?",
+      `
+      UPDATE periodos
+         SET eliminado=0,
+             eliminado_en=NULL,
+             activo = CASE WHEN CURDATE() BETWEEN fecha_ini AND fecha_fin THEN 1 ELSE 0 END
+       WHERE id=?`,
       [id]
     );
+
     const row = await getById(id);
     res.json(row);
   } catch (e) {

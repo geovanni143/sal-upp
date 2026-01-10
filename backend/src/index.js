@@ -21,6 +21,9 @@ import invitadosRoutes from "./routes/invitados.routes.js";
 import docentesRoutes from "./routes/docentes.routes.js";
 import incidentesRoutes from "./routes/incidentes.routes.js";
 
+import parametrosRoutes from "./routes/parametros.routes.js";
+import parametrosAuditRoutes from "./routes/parametros_audit.routes.js";
+
 // ===============================
 // PATHS & UPLOADS
 // ===============================
@@ -44,10 +47,9 @@ app.use(
 );
 
 // ===============================
-// JSON
+// BODY
 // ===============================
 app.use(express.json());
-app.use("/api/invitados", invitadosRoutes);
 
 // ===============================
 // ARCHIVOS ESTÁTICOS
@@ -55,9 +57,19 @@ app.use("/api/invitados", invitadosRoutes);
 app.use("/uploads", express.static(uploadsPath));
 
 // ===============================
+// HEALTH CHECK
+// ===============================
+app.get("/api/health", (_req, res) => {
+  res.json({ ok: true, service: "SAL-UPP backend" });
+});
+
+// ===============================
 // RUTAS API
 // ===============================
+// Auth base
 app.use("/api", authRoutes);
+
+// Recursos
 app.use("/api/users", usersRoutes);
 app.use("/api/labs", labsRoutes);
 app.use("/api/periodos", periodosRoutes);
@@ -68,11 +80,31 @@ app.use("/api/me", meRoutes);
 app.use("/api/docentes", docentesRoutes);
 app.use("/api/incidentes", incidentesRoutes);
 app.use("/api/historial", historialRoutes);
+
+// Invitados (solo 1 vez, aquí)
+app.use("/api/invitados", invitadosRoutes);
+
+// Parámetros (solo si existen los archivos)
+app.use("/api/parametros", parametrosRoutes);
+app.use("/api/parametros_audit", parametrosAuditRoutes);
+
 // ===============================
-// HEALTH CHECK
+// 404 API (para ver claro qué ruta falta)
 // ===============================
-app.get("/api/health", (_req, res) => {
-  res.json({ ok: true });
+app.use("/api", (req, res) => {
+  res.status(404).json({
+    message: "Ruta API no encontrada",
+    method: req.method,
+    path: req.originalUrl,
+  });
+});
+
+// ===============================
+// ERROR HANDLER
+// ===============================
+app.use((err, _req, res, _next) => {
+  console.error("[SERVER ERROR]", err);
+  res.status(500).json({ message: "Error interno del servidor" });
 });
 
 // ===============================
@@ -83,6 +115,7 @@ const PORT = Number(process.env.PORT || 4000);
 app.listen(PORT, () => {
   console.log("----------------------------------------");
   console.log(" SAL-UPP backend corriendo en :", PORT);
+  console.log(" Base URL API                : http://localhost:" + PORT + "/api");
   console.log(" CORS permitido desde        : http://localhost:5173");
   console.log(" Archivos estáticos en       :", uploadsPath);
   console.log("----------------------------------------");

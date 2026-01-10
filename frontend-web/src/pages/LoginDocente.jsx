@@ -47,17 +47,12 @@ export default function LoginDocente() {
         return;
       }
 
-      saveSession(
-        { token: data.token, user: data.user },
-        { remember }
-      );
+      saveSession({ token: data.token, user: data.user }, { remember });
 
       nav(redirectByRole(rol), { replace: true });
     } catch (ex) {
       const msg =
-        ex?.response?.data?.error ||
-        ex?.message ||
-        "Error al iniciar sesión";
+        ex?.response?.data?.error || ex?.message || "Error al iniciar sesión";
       setErr(msg);
     } finally {
       setL(false);
@@ -70,10 +65,14 @@ export default function LoginDocente() {
   return (
     <div className="page-login">
       <div className="login-card" role="dialog" aria-labelledby="title">
-        <h1 id="title" className="brand">SAL-UPP</h1>
+        <h1 id="title" className="brand">
+          SAL-UPP
+        </h1>
 
         <form className="form" onSubmit={submit}>
-          <label className="label" htmlFor="user">Usuario</label>
+          <label className="label" htmlFor="user">
+            Usuario
+          </label>
           <input
             id="user"
             className="input"
@@ -82,7 +81,9 @@ export default function LoginDocente() {
             required
           />
 
-          <label className="label" htmlFor="pass">Contraseña</label>
+          <label className="label" htmlFor="pass">
+            Contraseña
+          </label>
           <input
             id="pass"
             className="input"
@@ -131,10 +132,7 @@ export default function LoginDocente() {
           </div>
 
           <div className="reportar-btn-container">
-            <Link
-              to="/reportar-incidencia"
-              className="btn-secondary as-link"
-            >
+            <Link to="/reportar-incidencia" className="btn-secondary as-link">
               Reportar Incidencia
             </Link>
           </div>
