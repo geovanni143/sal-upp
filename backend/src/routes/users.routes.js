@@ -11,23 +11,24 @@ import fs from "fs";
 const r = Router();
 
 /* =====================================================
-   1. PERFIL — OBTENER USUARIO POR ID
+   1) PERFIL — OBTENER USUARIO POR ID
+   OJO: user_id es la PK real, lo devolvemos como id
 ===================================================== */
 r.get("/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
 
     const [[user]] = await pool.query(
-      `SELECT id, username, nombre, apellidos, email, rol, activo
+      `SELECT 
+         user_id AS id,
+         username, nombre, apellidos, email, rol, activo, avatar_url
        FROM users
-       WHERE id = ? AND eliminado = 0`,
+       WHERE user_id = ? AND eliminado = 0
+       LIMIT 1`,
       [id]
     );
 
-    if (!user) {
-      return res.status(404).json({ error: "Usuario no encontrado" });
-    }
-
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
     res.json(user);
   } catch (err) {
     console.error("ERROR GET /users/:id", err);
@@ -36,12 +37,14 @@ r.get("/:id", requireAuth, async (req, res) => {
 });
 
 /* =====================================================
-   2. LISTAR USUARIOS (ADMIN / SUPERADMIN)
+   2) LISTAR USUARIOS (ADMIN / SUPERADMIN)
 ===================================================== */
 r.get("/", requireAuth, requireRole("admin", "superadmin"), async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT id, username, nombre, apellidos, email, rol, activo
+      `SELECT 
+         user_id AS id,
+         username, nombre, apellidos, email, rol, activo, avatar_url
        FROM users
        WHERE eliminado = 0
        ORDER BY FIELD(rol,'superadmin','admin','docente'), nombre`
@@ -60,7 +63,7 @@ r.get("/", requireAuth, requireRole("admin", "superadmin"), async (req, res) => 
 });
 
 /* =====================================================
-   3. CREAR USUARIO
+   3) CREAR USUARIO
 ===================================================== */
 r.post(
   "/",
@@ -85,16 +88,12 @@ r.post(
         });
       }
 
-      // Prohibido crear superadmin
       if (rol === "superadmin") {
-        return res.status(403).json({
-          error: "Prohibido crear superadmin",
-        });
+        return res.status(403).json({ error: "Prohibido crear superadmin" });
       }
 
-      // Validar si username o email ya existen
       const [[exists]] = await pool.query(
-        `SELECT id FROM users WHERE (username=? OR email=?) AND eliminado=0 LIMIT 1`,
+        `SELECT user_id FROM users WHERE (username=? OR email=?) AND eliminado=0 LIMIT 1`,
         [username, email]
       );
 
@@ -122,7 +121,7 @@ r.post(
 );
 
 /* =====================================================
-   4. EDITAR USUARIO
+   4) EDITAR USUARIO (POR user_id)
 ===================================================== */
 r.put(
   "/:id",
@@ -135,31 +134,23 @@ r.put(
       const { username, nombre, apellidos = "", email, rol, activo } = req.body;
 
       if (rol === "superadmin") {
-        return res
-          .status(403)
-          .json({ error: "No se puede asignar rol superadmin" });
+        return res.status(403).json({ error: "No se puede asignar rol superadmin" });
       }
 
       const [[target]] = await pool.query(
-        "SELECT id, rol FROM users WHERE id=? AND eliminado=0",
+        "SELECT user_id, rol FROM users WHERE user_id=? AND eliminado=0",
         [id]
       );
 
-      if (!target) {
-        return res.status(404).json({ error: "No encontrado" });
-      }
+      if (!target) return res.status(404).json({ error: "No encontrado" });
 
-      // No tocar superadmin si no eres superadmin
       if (target.rol === "superadmin" && req.user.rol !== "superadmin") {
-        return res
-          .status(403)
-          .json({ error: "No puedes editar al SUPERADMIN" });
+        return res.status(403).json({ error: "No puedes editar al SUPERADMIN" });
       }
 
-      // Evitar duplicados username/email al editar
       const [[dupe]] = await pool.query(
-        `SELECT id FROM users 
-         WHERE (username=? OR email=?) AND eliminado=0 AND id<>?
+        `SELECT user_id FROM users 
+         WHERE (username=? OR email=?) AND eliminado=0 AND user_id<>?
          LIMIT 1`,
         [username, email, id]
       );
@@ -173,7 +164,7 @@ r.put(
       await pool.execute(
         `UPDATE users
          SET username=?, nombre=?, apellidos=?, email=?, rol=?, activo=?, updated_at=NOW()
-         WHERE id=? AND eliminado=0`,
+         WHERE user_id=? AND eliminado=0`,
         [username, nombre, apellidos, email, rol, Number(activo) ? 1 : 0, id]
       );
 
@@ -186,7 +177,7 @@ r.put(
 );
 
 /* =====================================================
-   5. ACTIVAR / INACTIVAR USUARIO
+   5) ACTIVAR / INACTIVAR (POR user_id)
 ===================================================== */
 r.patch(
   "/:id/activo",
@@ -198,30 +189,24 @@ r.patch(
       const { id } = req.params;
 
       const [[row]] = await pool.query(
-        "SELECT id, rol, activo FROM users WHERE id=? AND eliminado=0",
+        "SELECT user_id, rol, activo FROM users WHERE user_id=? AND eliminado=0",
         [id]
       );
 
-      if (!row) {
-        return res.status(404).json({ error: "No encontrado" });
-      }
+      if (!row) return res.status(404).json({ error: "No encontrado" });
 
       if (row.rol === "superadmin" && req.user.rol !== "superadmin") {
-        return res
-          .status(403)
-          .json({ error: "No se puede inactivar al SUPERADMIN" });
+        return res.status(403).json({ error: "No se puede inactivar al SUPERADMIN" });
       }
 
       if (req.user.rol === "admin" && row.rol === "admin") {
-        return res.status(403).json({
-          error: "Un ADMIN no puede activar/inactivar a otro ADMIN",
-        });
+        return res.status(403).json({ error: "Un ADMIN no puede activar/inactivar a otro ADMIN" });
       }
 
       const nuevo = row.activo ? 0 : 1;
 
       await pool.execute(
-        "UPDATE users SET activo=?, updated_at=NOW() WHERE id=?",
+        "UPDATE users SET activo=?, updated_at=NOW() WHERE user_id=?",
         [nuevo, id]
       );
 
@@ -234,7 +219,7 @@ r.patch(
 );
 
 /* =====================================================
-   6. ELIMINAR USUARIO (SOFT DELETE)
+   6) ELIMINAR (SOFT DELETE) (POR user_id)
 ===================================================== */
 r.delete(
   "/:id",
@@ -246,28 +231,22 @@ r.delete(
       const { id } = req.params;
 
       const [[row]] = await pool.query(
-        "SELECT id, rol FROM users WHERE id=? AND eliminado=0",
+        "SELECT user_id, rol FROM users WHERE user_id=? AND eliminado=0",
         [id]
       );
 
-      if (!row) {
-        return res.status(404).json({ error: "No encontrado" });
-      }
+      if (!row) return res.status(404).json({ error: "No encontrado" });
 
       if (row.rol === "superadmin") {
-        return res
-          .status(403)
-          .json({ error: "No se puede eliminar al SUPERADMIN" });
+        return res.status(403).json({ error: "No se puede eliminar al SUPERADMIN" });
       }
 
       if (req.user.rol === "admin" && row.rol !== "docente") {
-        return res.status(403).json({
-          error: "Un ADMIN solo puede eliminar DOCENTES",
-        });
+        return res.status(403).json({ error: "Un ADMIN solo puede eliminar DOCENTES" });
       }
 
       await pool.execute(
-        "UPDATE users SET eliminado=1, eliminado_en=NOW(), activo=0 WHERE id=?",
+        "UPDATE users SET eliminado=1, eliminado_en=NOW(), activo=0 WHERE user_id=?",
         [id]
       );
 
@@ -280,13 +259,10 @@ r.delete(
 );
 
 /* =====================================================
-   7. SUBIR AVATAR DE USUARIO
+   7) SUBIR AVATAR (POR user_id)
 ===================================================== */
 const avatarDir = path.resolve("uploads/avatars");
-
-if (!fs.existsSync(avatarDir)) {
-  fs.mkdirSync(avatarDir, { recursive: true });
-}
+if (!fs.existsSync(avatarDir)) fs.mkdirSync(avatarDir, { recursive: true });
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, avatarDir),
@@ -295,19 +271,16 @@ const storage = multer.diskStorage({
     cb(null, `user_${req.params.id}${ext}`);
   },
 });
-
 const upload = multer({ storage });
 
 r.post("/:id/avatar", requireAuth, upload.single("avatar"), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: "No se envió archivo" });
-    }
+    if (!req.file) return res.status(400).json({ error: "No se envió archivo" });
 
     const avatarPath = `/uploads/avatars/${req.file.filename}`;
 
     await pool.execute(
-      "UPDATE users SET avatar_url=?, updated_at=NOW() WHERE id=?",
+      "UPDATE users SET avatar_url=?, updated_at=NOW() WHERE user_id=?",
       [avatarPath, req.params.id]
     );
 

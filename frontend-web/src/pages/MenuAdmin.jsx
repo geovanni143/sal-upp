@@ -75,7 +75,9 @@ function formatDDMMM(d) {
 
 function today0() {
   const h = new Date();
-  return new Date(`${h.getFullYear()}-${pad2(h.getMonth() + 1)}-${pad2(h.getDate())}T00:00:00`);
+  return new Date(
+    `${h.getFullYear()}-${pad2(h.getMonth() + 1)}-${pad2(h.getDate())}T00:00:00`
+  );
 }
 
 /* =========================
@@ -129,11 +131,12 @@ function buildPeriodoBanner(periodosRaw) {
   const proximo = list.find((p) => hoy < p._ini);
   if (proximo) {
     const dias = diffDays(hoy, proximo._ini);
-    const when =
-      dias === 0 ? "hoy" : dias === 1 ? "mañana" : `en ${dias} días`;
+    const when = dias === 0 ? "hoy" : dias === 1 ? "mañana" : `en ${dias} días`;
     return {
       kind: "proximo",
-      text: `Periodo aún no comienza — Inicia ${when} (${formatDDMMM(proximo._ini)})`,
+      text: `Periodo aún no comienza — Inicia ${when} (${formatDDMMM(
+        proximo._ini
+      )})`,
     };
   }
 
@@ -141,7 +144,9 @@ function buildPeriodoBanner(periodosRaw) {
   const ultimo = list[list.length - 1];
   return {
     kind: "antiguo",
-    text: `No hay un periodo vigente — Último periodo terminó ${formatDDMMM(ultimo._fin)}`,
+    text: `No hay un periodo vigente — Último periodo terminó ${formatDDMMM(
+      ultimo._fin
+    )}`,
   };
 }
 
@@ -155,7 +160,10 @@ function normalizeRegistro(it) {
   const codigo =
     raw === "registrada" || raw === "registrado" || raw === "ok"
       ? "registrada"
-      : raw === "sin_registro" || raw === "sin registrar" || raw === "pendiente" || raw === "no"
+      : raw === "sin_registro" ||
+        raw === "sin registrar" ||
+        raw === "pendiente" ||
+        raw === "no"
       ? "sin_registro"
       : "";
 
@@ -170,7 +178,8 @@ function normalizeRegistro(it) {
   }
 
   const label =
-    norm(it.registro) || (codigo === "registrada" ? "Registrada" : "Sin registrar");
+    norm(it.registro) ||
+    (codigo === "registrada" ? "Registrada" : "Sin registrar");
 
   return { codigo: codigo || "sin_registro", label, detalle };
 }
@@ -179,13 +188,19 @@ function normalizeEstado(it) {
   const raw = norm(it.estado_codigo).toLowerCase();
 
   const estadoCodigo =
-    raw === "en_curso" || raw === "encurso" ? "en_curso" :
-    raw === "proxima" || raw === "proximo" ? "proxima" :
-    "impartida";
+    raw === "en_curso" || raw === "encurso"
+      ? "en_curso"
+      : raw === "proxima" || raw === "proximo"
+      ? "proxima"
+      : "impartida";
 
   const estadoLabel =
     norm(it.estado) ||
-    (estadoCodigo === "en_curso" ? "En curso" : estadoCodigo === "proxima" ? "Próxima" : "Impartida");
+    (estadoCodigo === "en_curso"
+      ? "En curso"
+      : estadoCodigo === "proxima"
+      ? "Próxima"
+      : "Impartida");
 
   const textoEstado =
     norm(it.texto_estado) ||
@@ -228,8 +243,23 @@ export default function MenuAdmin() {
     (async () => {
       try {
         const labsRes = await api.get("/labs");
-        const labsData = Array.isArray(labsRes.data) ? labsRes.data : labsRes.data.items || [];
-        setLabs(labsData);
+        const labsData = Array.isArray(labsRes.data)
+          ? labsRes.data
+          : labsRes.data.items || [];
+
+        // ✅ Normaliza y evita keys repetidas en <option>
+        // (si vienen ids null/repetidos del backend)
+        const normalized = labsData
+          .map((l, idx) => ({
+            ...l,
+            _key: `${l.id ?? "x"}-${l.nombre ?? "lab"}-${idx}`, // key segura
+          }))
+          .filter((l) => l && (l.nombre || "").trim().length > 0);
+
+        // (opcional) inspección rápida en consola
+        // console.table(normalized.map(x => ({ id: x.id, nombre: x.nombre, key: x._key })));
+
+        setLabs(normalized);
       } catch (err) {
         console.error("Error cargando labs:", err);
         setLabs([]);
@@ -241,7 +271,6 @@ export default function MenuAdmin() {
   useEffect(() => {
     (async () => {
       try {
-        // 👇 SI TU RUTA NO ES /periodos, CAMBIA AQUÍ (solo esta línea)
         const res = await api.get("/periodos");
         const data = Array.isArray(res.data) ? res.data : res.data.items || [];
         setPeriodos(data);
@@ -281,10 +310,14 @@ export default function MenuAdmin() {
 
     let out = [...items];
 
-    if (labSel !== "todos") out = out.filter((x) => Number(x.lab_id) === Number(labSel));
+    if (labSel !== "todos")
+      out = out.filter((x) => Number(x.lab_id) === Number(labSel));
 
     const busq = docFiltro.trim().toLowerCase();
-    if (busq) out = out.filter((x) => (x.docente || "").toLowerCase().includes(busq));
+    if (busq)
+      out = out.filter((x) =>
+        (x.docente || "").toLowerCase().includes(busq)
+      );
 
     const tipoOrden = { en_curso: 1, proxima: 2, impartida: 3 };
 
@@ -293,7 +326,8 @@ export default function MenuAdmin() {
       const tb = tipoOrden[norm(b.estado_codigo).toLowerCase()] || 99;
       if (ta !== tb) return ta - tb;
 
-      if ((a.dia_num || 0) !== (b.dia_num || 0)) return (a.dia_num || 0) - (b.dia_num || 0);
+      if ((a.dia_num || 0) !== (b.dia_num || 0))
+        return (a.dia_num || 0) - (b.dia_num || 0);
       return String(a.hora_ini || "").localeCompare(String(b.hora_ini || ""));
     });
 
@@ -350,8 +384,10 @@ export default function MenuAdmin() {
               className="filter-input"
             >
               <option value="todos">Todos los laboratorios</option>
+
+              {/* ✅ KEY CORREGIDA: usa _key para evitar duplicados */}
               {labs.map((l) => (
-                <option key={l.id} value={l.id}>
+                <option key={l._key} value={l.id}>
                   {l.nombre}
                 </option>
               ))}
@@ -381,7 +417,9 @@ export default function MenuAdmin() {
             {items === null && <div className="empty">Cargando…</div>}
 
             {items !== null && itemsFiltrados.length === 0 && (
-              <div className="empty">No hay clases para los filtros seleccionados.</div>
+              <div className="empty">
+                No hay clases para los filtros seleccionados.
+              </div>
             )}
 
             {itemsFiltrados.map((it) => {
@@ -391,7 +429,9 @@ export default function MenuAdmin() {
               return (
                 <div
                   className="class-card"
-                  key={`${it.id || 0}-${it.dia_num || 0}-${it.hora_ini || "00:00"}-${it.lab_id || 0}`}
+                  key={`${it.id || 0}-${it.dia_num || 0}-${it.hora_ini || "00:00"}-${
+                    it.lab_id || 0
+                  }`}
                 >
                   <div className="class-row">
                     <div className="class-title">

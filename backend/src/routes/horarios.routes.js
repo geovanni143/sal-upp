@@ -52,8 +52,19 @@ const HHMMSS = (s) => `${HHMM(s)}:00`;
 const toMin = (s) => {
   if (!s) return 0;
   const [H, M] = String(s).split(":").map(Number);
-  return H * 60 + (M || 0);
+  return (H || 0) * 60 + (M || 0);
 };
+
+// minutos -> "HH:mm"
+const fromMin = (m) => {
+  const H = Math.floor(m / 60);
+  const M = m % 60;
+  return `${String(H).padStart(2, "0")}:${String(M).padStart(2, "0")}`;
+};
+
+// redondear hacia abajo/arriba a bloques de 30
+const floorTo30 = (m) => Math.floor(m / 30) * 30;
+const ceilTo30 = (m) => Math.ceil(m / 30) * 30;
 
 // ¿hoy está entre fecha_ini y fecha_fin?  (YYYY-MM-DD)
 function isTodayBetween(iniStr, finStr) {
@@ -89,17 +100,6 @@ function nombreDia(d) {
   return map[n] || "Día desconocido";
 }
 
-// Horas medias para tabla y PDF (7:00–18:30)
-const horasMedias = (() => {
-  const out = [];
-  const pad = (n) => String(n).padStart(2, "0");
-  for (let H = 7; H < 19; H++) {
-    out.push(`${pad(H)}:00`);
-    out.push(`${pad(H)}:30`);
-  }
-  return out;
-})();
-
 // Código numérico de 4 dígitos
 function generarCodigo4Digitos() {
   return Math.floor(1000 + Math.random() * 9000).toString(); // 1000–9999
@@ -120,16 +120,8 @@ function diaActualNumero() {
  * Asegura que exista un código QR para la combinación periodo+lab.
  * Si no existe, genera uno único y lo guarda en TODOS los bloques
  * de ese horario (misma combinación).
- *
- * Devuelve:
- *  - ok: boolean
- *  - msg: string si hay error
- *  - codigo: string (4 dígitos) si ok
- *  - meta: { periodo_id, lab_id, periodo_nombre, periodo_ini, periodo_fin,
- *           lab_nombre, bloques_activos }
  */
 async function ensureQrCodeForHorario(periodo_id, lab_id) {
-  // 1) Verificar que existan bloques para esa combinación
   const [rows] = await pool.query(
     `
     SELECT
@@ -153,19 +145,13 @@ async function ensureQrCodeForHorario(periodo_id, lab_id) {
   );
 
   if (!rows || rows.length === 0) {
-    return {
-      ok: false,
-      msg: "no_blocks_for_combo",
-    };
+    return { ok: false, msg: "no_blocks_for_combo" };
   }
 
   const r0 = rows[0];
-
   let codigo = r0.codigo_qr;
 
-  // 2) Si no hay código, generamos uno único
   if (!codigo) {
-    // Buscar un código que no exista en la tabla
     let unique = false;
     let intento = 0;
 
@@ -183,13 +169,9 @@ async function ensureQrCodeForHorario(periodo_id, lab_id) {
     }
 
     if (!unique || !codigo) {
-      return {
-        ok: false,
-        msg: "cannot_generate_unique_code",
-      };
+      return { ok: false, msg: "cannot_generate_unique_code" };
     }
 
-    // Guardar el mismo código en TODOS los bloques de esa combinación
     await pool.query(
       `
       UPDATE horarios
@@ -219,11 +201,6 @@ async function ensureQrCodeForHorario(periodo_id, lab_id) {
    CATÁLOGO DE HORARIOS (combinación periodo+lab)
    ========================================================= */
 
-/**
- * GET /api/horarios/catalogo
- *  - Lista de horarios agrupados por periodo+lab
- *  - Mismo formato que usa el catálogo de la vista HorariosPage
- */
 r.get("/catalogo", async (req, res) => {
   try {
     const { search = "", mostrar_eliminados = "0" } = req.query;
@@ -232,11 +209,8 @@ r.get("/catalogo", async (req, res) => {
     const filtros = [];
     const params = [];
 
-    if (showDeleted) {
-      filtros.push("IFNULL(h.eliminado,0) = 1");
-    } else {
-      filtros.push("IFNULL(h.eliminado,0) = 0");
-    }
+    if (showDeleted) filtros.push("IFNULL(h.eliminado,0) = 1");
+    else filtros.push("IFNULL(h.eliminado,0) = 0");
 
     if (search) {
       filtros.push("(p.nombre LIKE ? OR l.nombre LIKE ?)");
@@ -269,7 +243,6 @@ r.get("/catalogo", async (req, res) => {
 
     const data = rows.map((r) => {
       const en_curso = isTodayBetween(r.periodo_ini, r.periodo_fin);
-
       return {
         periodo_id: r.periodo_id,
         lab_id: r.lab_id,
@@ -291,10 +264,6 @@ r.get("/catalogo", async (req, res) => {
   }
 });
 
-/**
- * GET /api/horarios/catalogo/:periodo_id/:lab_id
- *  - Devuelve los bloques crudos de ese horario
- */
 r.get("/catalogo/:periodo_id/:lab_id", async (req, res) => {
   try {
     const { periodo_id, lab_id } = req.params;
@@ -350,9 +319,7 @@ r.patch("/catalogo/:periodo_id/:lab_id/desactivar", async (req, res) => {
       [periodo_id]
     );
 
-    if (!p) {
-      return res.json({ ok: false, msg: "Periodo no encontrado" });
-    }
+    if (!p) return res.json({ ok: false, msg: "Periodo no encontrado" });
 
     if (isTodayBetween(p.ini, p.fin)) {
       return res.json({
@@ -374,9 +341,6 @@ r.patch("/catalogo/:periodo_id/:lab_id/desactivar", async (req, res) => {
   }
 });
 
-/**
- * DELETE lógico del horario (marca eliminado=1)
- */
 r.delete("/catalogo/:periodo_id/:lab_id", async (req, res) => {
   try {
     const { periodo_id, lab_id } = req.params;
@@ -388,9 +352,7 @@ r.delete("/catalogo/:periodo_id/:lab_id", async (req, res) => {
       [periodo_id]
     );
 
-    if (!p) {
-      return res.json({ ok: false, msg: "Periodo no encontrado" });
-    }
+    if (!p) return res.json({ ok: false, msg: "Periodo no encontrado" });
 
     if (isTodayBetween(p.ini, p.fin)) {
       return res.json({
@@ -412,9 +374,6 @@ r.delete("/catalogo/:periodo_id/:lab_id", async (req, res) => {
   }
 });
 
-/**
- * DELETE hard: borra definitivamente los bloques ya marcados como eliminados
- */
 r.delete("/catalogo/:periodo_id/:lab_id/hard", async (req, res) => {
   try {
     const { periodo_id, lab_id } = req.params;
@@ -442,9 +401,6 @@ r.delete("/catalogo/:periodo_id/:lab_id/hard", async (req, res) => {
   }
 });
 
-/**
- * RESTORE: marca eliminado=0 otra vez para esa combinación
- */
 r.post("/catalogo/:periodo_id/:lab_id/restore", async (req, res) => {
   try {
     const { periodo_id, lab_id } = req.params;
@@ -510,9 +466,6 @@ r.get("/semana", async (req, res) => {
 
 /* =========================================================
    POST /api/horarios/bulk
-   Guarda la semana completa (borra y vuelve a insertar)
-   Body: { periodo_id, lab_id, upserts: [ ...bloques... ],
-           from_periodo_id?, from_lab_id? }
    ========================================================= */
 
 r.post("/bulk", async (req, res) => {
@@ -536,7 +489,6 @@ r.post("/bulk", async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    // Si se está "moviendo" el horario desde otra combinación, limpiamos la anterior
     if (
       from_periodo_id &&
       from_lab_id &&
@@ -552,7 +504,6 @@ r.post("/bulk", async (req, res) => {
       );
     }
 
-    // Limpiar horario destino actual (full replace)
     await conn.query(
       `
       DELETE FROM horarios
@@ -561,7 +512,6 @@ r.post("/bulk", async (req, res) => {
       [periodo_id, lab_id]
     );
 
-    // Insertar de nuevo todos los bloques
     for (const b of blocks) {
       const diaN = normalizarDiaDB(b.dia);
       if (!diaN) continue;
@@ -586,7 +536,7 @@ r.post("/bulk", async (req, res) => {
           b.codigo || null,
           b.grupo || null,
           b.docente_id || null,
-          b.activo ? 1 : 1,
+          1,
         ]
       );
     }
@@ -613,9 +563,11 @@ r.post("/bulk", async (req, res) => {
 });
 
 /* =========================================================
-   GET /api/horarios/pdf
-   Genera PDF del horario completo (semana)
-   Query: periodo_id, lab_id
+   ✅✅✅ PDF CORREGIDO /api/horarios/pdf
+   - Wrap real (no se encima)
+   - Calcula altura por fila
+   - Recorta horas muertas
+   - Multi página con encabezado de tabla
    ========================================================= */
 
 r.get("/pdf", async (req, res) => {
@@ -638,10 +590,7 @@ r.get("/pdf", async (req, res) => {
       [periodo_id]
     );
 
-    const [[l]] = await pool.query(
-      `SELECT nombre FROM labs WHERE id=?`,
-      [lab_id]
-    );
+    const [[l]] = await pool.query(`SELECT nombre FROM labs WHERE id=?`, [lab_id]);
 
     const [rows] = await pool.query(
       `
@@ -664,15 +613,14 @@ r.get("/pdf", async (req, res) => {
       [periodo_id, lab_id]
     );
 
-    // Mapear por día y hora para buscar rápido
-    const bloques = rows.map((b) => ({
+    const bloques = (rows || []).map((b) => ({
       dia: normalizarDiaDB(b.dia),
       hora_ini: b.hora_ini,
       hora_fin: b.hora_fin,
-      materia: b.materia,
-      codigo: b.codigo,
-      grupo: b.grupo,
-      docente_nombre: b.docente_nombre,
+      materia: b.materia || "",
+      codigo: b.codigo || "",
+      grupo: b.grupo || "",
+      docente_nombre: b.docente_nombre || "",
     }));
 
     const cellBloque = (dia, hhmm) =>
@@ -683,10 +631,27 @@ r.get("/pdf", async (req, res) => {
           b.hora_fin > hhmm
       ) || null;
 
+    // ============ HORAS DINÁMICAS (quita horas muertas) ============
+    let times = [];
+    if (bloques.length) {
+      const minM = Math.min(...bloques.map((b) => toMin(b.hora_ini)));
+      const maxM = Math.max(...bloques.map((b) => toMin(b.hora_fin)));
+      const start = floorTo30(minM);
+      const end = ceilTo30(maxM);
+      for (let t = start; t < end; t += 30) times.push(fromMin(t));
+    } else {
+      // si no hay bloques, por default una tabla completa "normal"
+      const start = toMin("07:00");
+      const end = toMin("19:00");
+      for (let t = start; t < end; t += 30) times.push(fromMin(t));
+    }
+
+    // ============ PDF ============
     const doc = new PDFDocument({
       size: "LETTER",
-      margin: 30,
-      layout: "landscape",
+      layout: "portrait", // ✅ como tu PDF “bueno”
+      margin: 36,
+      autoFirstPage: true,
     });
 
     res.setHeader("Content-Type", "application/pdf");
@@ -697,80 +662,162 @@ r.get("/pdf", async (req, res) => {
 
     doc.pipe(res);
 
-    // Encabezado
-    doc.fontSize(14).text("UNIVERSIDAD POLITÉCNICA DE PACHUCA", {
-      align: "center",
-    });
-    doc.moveDown(0.4);
-    doc.fontSize(12).text("HORARIO DE LABORATORIO", { align: "center" });
-    doc.moveDown(0.4);
+    // ---- Header grande SOLO en la primera página (como tu ejemplo)
+    const drawMainHeader = () => {
+      doc.font("Helvetica");
+      doc.fontSize(12).text("UNIVERSIDAD POLITÉCNICA DE PACHUCA", { align: "center" });
+      doc.moveDown(0.25);
+      doc.fontSize(10).text("HORARIO DE CLASES POR ESPACIOS EDUCATIVOS", { align: "center" });
+      doc.moveDown(0.25);
 
-    const tituloPeriodo = p ? `${p.nombre} (${p.ini} — ${p.fin})` : "";
-    const tituloLab = l ? `Laboratorio: ${l.nombre}` : "";
+      const tituloPeriodo = p ? `${p.nombre} (${p.ini} — ${p.fin})` : "";
+      const tituloLab = l ? `HORARIO DE ${l.nombre}` : "";
 
-    if (tituloPeriodo) {
-      doc.fontSize(10).text(tituloPeriodo, { align: "center" });
-    }
-    if (tituloLab) {
-      doc.fontSize(10).text(tituloLab, { align: "center" });
-    }
+      if (tituloPeriodo) doc.fontSize(9).text(tituloPeriodo, { align: "center" });
+      if (tituloLab) doc.fontSize(9).text(tituloLab, { align: "center" });
 
-    doc.moveDown(1);
+      doc.moveDown(0.7);
+    };
 
-    // Tabla sencilla
-    const startX = 40;
-    let y = doc.y;
-    const colWidthHora = 60;
-    const colWidthDia = (doc.page.width - startX * 2 - colWidthHora) / 5;
+    // ---- Tabla (grid) estilo “bueno”
+    const pageW = doc.page.width;
+    const pageH = doc.page.height;
+    const M = doc.page.margins.left;
 
-    doc.fontSize(8);
+    const tableX = M;
+    let tableY = doc.y;
 
-    // Header row
-    doc.text("Hora", startX, y, { width: colWidthHora, align: "center" });
-    const dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
-    dias.forEach((d, idx) => {
-      doc.text(d, startX + colWidthHora + colWidthDia * idx, y, {
-        width: colWidthDia,
-        align: "center",
-      });
-    });
+    const tableW = pageW - M * 2;
 
-    y += 18;
-    doc.moveTo(startX, y - 2).lineTo(doc.page.width - startX, y - 2).stroke();
+    const colHoraW = 78;
+    const colW = (tableW - colHoraW) / 5;
 
-    // Filas de horas
-    horasMedias.forEach((hhmm) => {
-      if (y > doc.page.height - 40) {
-        doc.addPage();
-        y = 40;
+    const headerH = 22;
+    const pad = 4;
+
+    const dias = ["LUNES", "MARTES", "MIÉRCOLES", "JUEVES", "VIERNES"];
+
+    const drawTableHeader = (y) => {
+      doc.lineWidth(1);
+
+      // fila header completa (borde exterior)
+      doc.rect(tableX, y, tableW, headerH).stroke();
+
+      // separadores verticales
+      // hora
+      doc.moveTo(tableX + colHoraW, y).lineTo(tableX + colHoraW, y + headerH).stroke();
+      // días
+      for (let i = 1; i < 5; i++) {
+        const x = tableX + colHoraW + colW * i;
+        doc.moveTo(x, y).lineTo(x, y + headerH).stroke();
       }
 
-      doc.text(hhmm, startX, y, {
-        width: colWidthHora,
-        align: "center",
+      doc.font("Helvetica").fontSize(8.5);
+
+      doc.text("HORA", tableX, y + 6, { width: colHoraW, align: "center" });
+
+      dias.forEach((d, idx) => {
+        doc.text(
+          d,
+          tableX + colHoraW + colW * idx,
+          y + 6,
+          { width: colW, align: "center" }
+        );
       });
 
-      for (let d = 1; d <= 5; d++) {
-        const b = cellBloque(d, hhmm);
-        if (b) {
-          const labelParts = [];
-          if (b.materia) labelParts.push(b.materia);
-          if (b.codigo) labelParts.push(b.codigo);
-          if (b.grupo) labelParts.push(`Grupo: ${b.grupo}`);
-          if (b.docente_nombre) labelParts.push(b.docente_nombre);
+      return y + headerH;
+    };
 
-          doc.text(
-            labelParts.join(" · "),
-            startX + colWidthHora + colWidthDia * (d - 1),
-            y,
-            { width: colWidthDia, align: "left" }
-          );
+    const formatCell = (b) => {
+      if (!b) return "";
+      const top = [b.materia, b.codigo].filter(Boolean).join(" — ");
+      const lines = [];
+      if (top) lines.push(top);
+      if (b.grupo) lines.push(`Grupo: ${b.grupo}`);
+      if (b.docente_nombre) lines.push(`Imparte: ${b.docente_nombre}`);
+      return lines.join("\n");
+    };
+
+    const calcRowHeight = (rowTexts) => {
+      doc.font("Helvetica").fontSize(7.5);
+
+      let maxH = 18; // mínimo
+      for (const txt of rowTexts) {
+        if (!txt) continue;
+        const h = doc.heightOfString(txt, {
+          width: colW - pad * 2,
+          align: "left",
+        });
+        maxH = Math.max(maxH, h + pad * 2);
+      }
+      // límite razonable (evita filas enormes si alguien mete biblias)
+      return Math.min(Math.max(maxH, 26), 92);
+    };
+
+    const drawRow = (y, hhmm, rowTexts) => {
+      const rowH = calcRowHeight(rowTexts);
+
+      // Si no cabe, nueva página
+      const bottomLimit = pageH - doc.page.margins.bottom;
+      if (y + rowH > bottomLimit) {
+        doc.addPage();
+        // en páginas 2+, NO repetimos el header grande, solo la tabla
+        y = doc.page.margins.top;
+        y = drawTableHeader(y);
+      }
+
+      doc.lineWidth(1);
+
+      // rect de fila completa
+      doc.rect(tableX, y, tableW, rowH).stroke();
+
+      // verticales
+      doc.moveTo(tableX + colHoraW, y).lineTo(tableX + colHoraW, y + rowH).stroke();
+      for (let i = 1; i < 5; i++) {
+        const x = tableX + colHoraW + colW * i;
+        doc.moveTo(x, y).lineTo(x, y + rowH).stroke();
+      }
+
+      // Hora centrada
+      doc.font("Helvetica").fontSize(8);
+      doc.text(hhmm, tableX, y + rowH / 2 - 4, { width: colHoraW, align: "center" });
+
+      // Celdas con CLIP para que jamás se encime fuera
+      doc.font("Helvetica").fontSize(7.5);
+
+      for (let i = 0; i < 5; i++) {
+        const x = tableX + colHoraW + colW * i;
+        const txt = rowTexts[i] || "";
+
+        if (txt) {
+          doc.save();
+          doc.rect(x + 1, y + 1, colW - 2, rowH - 2).clip();
+
+          doc.text(txt, x + pad, y + pad, {
+            width: colW - pad * 2,
+            align: "left",
+            lineGap: 1.2,
+          });
+
+          doc.restore();
         }
       }
 
-      y += 14;
-      doc.moveTo(startX, y - 2).lineTo(doc.page.width - startX, y - 2).stroke();
-    });
+      return y + rowH;
+    };
+
+    // ======= Render final =======
+    drawMainHeader();
+    tableY = drawTableHeader(tableY);
+
+    for (const hhmm of times) {
+      const rowTexts = [];
+      for (let d = 1; d <= 5; d++) {
+        const b = cellBloque(d, hhmm);
+        rowTexts.push(formatCell(b));
+      }
+      tableY = drawRow(tableY, hhmm, rowTexts);
+    }
 
     doc.end();
   } catch (err) {
@@ -781,9 +828,6 @@ r.get("/pdf", async (req, res) => {
 
 /* =========================================================
    LISTA DE HORARIOS PARA GENERAR QR
-   GET /api/horarios/lista
-   - Devuelve 1 ítem por combinación periodo+lab
-   - Formato igual que catálogo
    ========================================================= */
 
 r.get("/lista", async (_req, res) => {
@@ -828,9 +872,7 @@ r.get("/lista", async (_req, res) => {
 });
 
 /* =========================================================
-   GENERAR CÓDIGO (4 dígitos) + QR POR HORARIO (periodo+lab)
-   POST /api/horarios/generar-qr
-   body: { periodo_id, lab_id }
+   GENERAR QR
    ========================================================= */
 
 r.post("/generar-qr", async (req, res) => {
@@ -850,11 +892,10 @@ r.post("/generar-qr", async (req, res) => {
 
     const { codigo, meta } = result;
 
-    // payload que va dentro del QR
     const payload = {
       scope: "sal-upp-horario",
       version: 1,
-      codigo, // código de 4 dígitos
+      codigo,
       periodo_id: meta.periodo_id,
       lab_id: meta.lab_id,
       periodo_nombre: meta.periodo_nombre,
@@ -878,8 +919,7 @@ r.post("/generar-qr", async (req, res) => {
 });
 
 /* =========================================================
-   PDF SOLO DE QR PARA EL HORARIO (periodo+lab)
-   GET /api/horarios/qr-pdf?periodo_id=&lab_id=
+   PDF SOLO DE QR
    ========================================================= */
 
 r.get("/qr-pdf", async (req, res) => {
@@ -893,9 +933,7 @@ r.get("/qr-pdf", async (req, res) => {
     }
 
     const result = await ensureQrCodeForHorario(periodo_id, lab_id);
-    if (!result.ok) {
-      return res.status(400).json({ ok: false, msg: result.msg });
-    }
+    if (!result.ok) return res.status(400).json({ ok: false, msg: result.msg });
 
     const { codigo, meta } = result;
 
@@ -925,14 +963,9 @@ r.get("/qr-pdf", async (req, res) => {
 
     doc.pipe(res);
 
-    // Encabezado
-    doc.fontSize(12).text("UNIVERSIDAD POLITÉCNICA DE PACHUCA", {
-      align: "center",
-    });
+    doc.fontSize(12).text("UNIVERSIDAD POLITÉCNICA DE PACHUCA", { align: "center" });
     doc.moveDown(0.3);
-    doc.fontSize(11).text("CÓDIGO QR PARA REGISTRO DE ASISTENCIA", {
-      align: "center",
-    });
+    doc.fontSize(11).text("CÓDIGO QR PARA REGISTRO DE ASISTENCIA", { align: "center" });
 
     doc.moveDown(0.4);
     doc
@@ -941,36 +974,20 @@ r.get("/qr-pdf", async (req, res) => {
         `Periodo: ${meta.periodo_nombre} (${meta.periodo_ini} — ${meta.periodo_fin})`,
         { align: "center" }
       );
-    doc
-      .fontSize(10)
-      .text(`Laboratorio: ${meta.lab_nombre}`, { align: "center" });
+    doc.fontSize(10).text(`Laboratorio: ${meta.lab_nombre}`, { align: "center" });
 
     doc.moveDown(1);
-    doc.fontSize(11).text(`Código de horario: ${codigo}`, {
-      align: "center",
-    });
+    doc.fontSize(11).text(`Código de horario: ${codigo}`, { align: "center" });
 
-    // =========================
-    //  QR GRANDE + CÓDIGO ABAJO
-    // =========================
     doc.moveDown(1.5);
 
-    // tamaño grande del QR
-    const qrSize = 320; // más grande que antes
-    // posición X centrada
+    const qrSize = 320;
     const qrX = (doc.page.width - qrSize) / 2;
-    // posición Y fija para que no se encime con encabezado
-    const qrY = doc.y; // ya después del texto anterior
+    const qrY = doc.y;
 
-    // Dibuja el QR
     doc.image(imgBuffer, qrX, qrY, { width: qrSize });
 
-    // Calculamos nueva Y (debajo del QR)
     const afterQrY = qrY + qrSize + 30;
-    doc.moveTo(50, afterQrY - 10); // línea suave opcional
-    doc.moveDown(0.2);
-
-    // Texto del código bien grande, centrado y SIN encimar el QR
     doc.y = afterQrY;
     doc.fontSize(48).text(codigo, { align: "center" });
 
@@ -983,21 +1000,12 @@ r.get("/qr-pdf", async (req, res) => {
 
 /* =========================================================
    VALIDAR ESCANEO DE QR
-   POST /api/horarios/qr/validar-escaneo
-   body: { codigo, docente_id?, lab_id? }
-   - Verifica:
-     * que el código exista
-     * que hoy esté dentro del periodo
-     * que el día y hora actual estén en algún bloque
-     * que (opcional) el docente coincida con el dueño del bloque
    ========================================================= */
 
 r.post("/qr/validar-escaneo", async (req, res) => {
   try {
     const { codigo, docente_id, lab_id } = req.body || {};
-    if (!codigo) {
-      return res.status(400).json({ ok: false, msg: "missing_code" });
-    }
+    if (!codigo) return res.status(400).json({ ok: false, msg: "missing_code" });
 
     const [rows] = await pool.query(
       `
@@ -1028,11 +1036,9 @@ r.post("/qr/validar-escaneo", async (req, res) => {
     }
 
     const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10);
     const currentHHMM = now.toTimeString().slice(0, 5);
     const currentDay = diaActualNumero(); // 1..7
 
-    // Meta general del primer registro
     const meta = {
       periodo_id: rows[0].periodo_id,
       lab_id: rows[0].lab_id,
@@ -1042,30 +1048,19 @@ r.post("/qr/validar-escaneo", async (req, res) => {
       lab_nombre: rows[0].lab_nombre,
     };
 
-    // 1) Validar que hoy está dentro del periodo
     if (!isTodayBetween(meta.periodo_ini, meta.periodo_fin)) {
-      return res.status(400).json({
-        ok: false,
-        msg: "out_of_period",
-        meta,
-      });
+      return res.status(400).json({ ok: false, msg: "out_of_period", meta });
     }
 
-    // 2) Filtrar solo bloques del día actual (si es 1..5)
     const diaFilter = currentDay >= 1 && currentDay <= 5 ? currentDay : null;
     const rowsHoy = diaFilter
       ? rows.filter((r) => normalizarDiaDB(r.dia) === diaFilter)
       : [];
 
-    if (!rowsHoy || rowsHoy.length === 0) {
-      return res.status(400).json({
-        ok: false,
-        msg: "no_class_today",
-        meta,
-      });
+    if (!rowsHoy.length) {
+      return res.status(400).json({ ok: false, msg: "no_class_today", meta });
     }
 
-    // 3) Validar que la hora actual caiga dentro de algún bloque
     const tNow = toMin(currentHHMM);
     const bloquesHora = rowsHoy.filter((r) => {
       const ini = toMin(r.hora_ini);
@@ -1073,7 +1068,7 @@ r.post("/qr/validar-escaneo", async (req, res) => {
       return tNow >= ini && tNow < fin;
     });
 
-    if (!bloquesHora || bloquesHora.length === 0) {
+    if (!bloquesHora.length) {
       return res.status(400).json({
         ok: false,
         msg: "out_of_schedule_time",
@@ -1082,28 +1077,18 @@ r.post("/qr/validar-escaneo", async (req, res) => {
       });
     }
 
-    // 4) Validar docente opcional
     let docenteValido = true;
     if (docente_id) {
       docenteValido = bloquesHora.some(
         (b) => Number(b.docente_id) === Number(docente_id)
       );
       if (!docenteValido) {
-        return res.status(403).json({
-          ok: false,
-          msg: "wrong_teacher",
-          meta,
-        });
+        return res.status(403).json({ ok: false, msg: "wrong_teacher", meta });
       }
     }
 
-    // 5) Validar lab opcional
     if (lab_id && Number(lab_id) !== Number(meta.lab_id)) {
-      return res.status(400).json({
-        ok: false,
-        msg: "wrong_lab",
-        meta,
-      });
+      return res.status(400).json({ ok: false, msg: "wrong_lab", meta });
     }
 
     return res.json({
@@ -1121,9 +1106,8 @@ r.post("/qr/validar-escaneo", async (req, res) => {
 
 /* =========================================================
    REGISTRAR ASISTENCIA POR QR
-   POST /api/horarios/qr/registrar
-   body: { codigo, docente_id, invitado_nombre? }
    ========================================================= */
+
 r.post("/qr/registrar", async (req, res) => {
   try {
     const { codigo, docente_id, invitado_nombre } = req.body || {};
@@ -1175,24 +1159,21 @@ r.post("/qr/registrar", async (req, res) => {
       return res.status(400).json({ ok: false, msg: "out_of_period", meta });
     }
 
-    // =========================
-    // MODO PRUEBA (test=1)
-    // =========================
     let rowsHoy = [];
-    if (testMode) {
-      rowsHoy = rows; // no filtra por día
-    } else {
+    if (testMode) rowsHoy = rows;
+    else {
       const diaFilter = currentDay >= 1 && currentDay <= 5 ? currentDay : null;
-      rowsHoy = diaFilter ? rows.filter((r) => normalizarDiaDB(r.dia) === diaFilter) : [];
+      rowsHoy = diaFilter
+        ? rows.filter((r) => normalizarDiaDB(r.dia) === diaFilter)
+        : [];
       if (!rowsHoy.length) {
         return res.status(400).json({ ok: false, msg: "no_class_today", meta });
       }
     }
 
     let bloquesHora = [];
-    if (testMode) {
-      bloquesHora = rowsHoy; // no filtra por hora
-    } else {
+    if (testMode) bloquesHora = rowsHoy;
+    else {
       const tNow = toMin(currentHHMM);
       bloquesHora = rowsHoy.filter((r) => {
         const ini = toMin(r.hora_ini);
@@ -1210,7 +1191,6 @@ r.post("/qr/registrar", async (req, res) => {
       }
     }
 
-    // Validación docente: en testMode valida que el docente exista en algún bloque del código
     if (docente_id) {
       const docenteValido = bloquesHora.some(
         (b) => Number(b.docente_id) === Number(docente_id)
@@ -1220,15 +1200,14 @@ r.post("/qr/registrar", async (req, res) => {
       }
     }
 
-    // Elegir el bloque correcto para guardar horario_id
     const chosen =
       docente_id
-        ? bloquesHora.find((b) => Number(b.docente_id) === Number(docente_id)) || bloquesHora[0]
+        ? bloquesHora.find((b) => Number(b.docente_id) === Number(docente_id)) ||
+          bloquesHora[0]
         : bloquesHora[0];
 
     const horario_id = chosen.id;
 
-    // Evitar duplicado
     if (docente_id) {
       const [dup] = await pool.query(
         `
@@ -1249,7 +1228,6 @@ r.post("/qr/registrar", async (req, res) => {
       }
     }
 
-    // Insert
     await pool.query(
       `
       INSERT INTO asistencias
@@ -1282,7 +1260,6 @@ r.post("/qr/registrar", async (req, res) => {
     res.status(500).json({ ok: false, msg: "server_error" });
   }
 });
-
 
 r.post(
   "/qr/registrar-evidencia",
@@ -1347,24 +1324,21 @@ r.post(
         return res.status(400).json({ ok: false, msg: "out_of_period", meta });
       }
 
-      // =========================
-      // MODO PRUEBA (test=1)
-      // =========================
       let rowsHoy = [];
-      if (testMode) {
-        rowsHoy = rows;
-      } else {
+      if (testMode) rowsHoy = rows;
+      else {
         const diaFilter = currentDay >= 1 && currentDay <= 5 ? currentDay : null;
-        rowsHoy = diaFilter ? rows.filter((r) => normalizarDiaDB(r.dia) === diaFilter) : [];
+        rowsHoy = diaFilter
+          ? rows.filter((r) => normalizarDiaDB(r.dia) === diaFilter)
+          : [];
         if (!rowsHoy.length) {
           return res.status(400).json({ ok: false, msg: "no_class_today", meta });
         }
       }
 
       let bloquesHora = [];
-      if (testMode) {
-        bloquesHora = rowsHoy;
-      } else {
+      if (testMode) bloquesHora = rowsHoy;
+      else {
         const tNow = toMin(currentHHMM);
         bloquesHora = rowsHoy.filter((r) => {
           const ini = toMin(r.hora_ini);
@@ -1390,7 +1364,8 @@ r.post(
       }
 
       const chosen =
-        bloquesHora.find((b) => Number(b.docente_id) === Number(docente_id)) || bloquesHora[0];
+        bloquesHora.find((b) => Number(b.docente_id) === Number(docente_id)) ||
+        bloquesHora[0];
 
       const horario_id = chosen.id;
 
@@ -1452,8 +1427,6 @@ r.post(
     }
   }
 );
-
-
 
 /* =========================================================
    SANITY CHECK

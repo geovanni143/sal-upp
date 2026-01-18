@@ -1,53 +1,39 @@
-// frontend-web/src/services/parametrosApi.js
-import api from "./api";
+// src/services/parametrosApi.js
+import { api } from "./api";
 
 /**
- * OJO:
- * Tu componente espera estos nombres:
- * - listParametros
- * - createParametro
- * - updateParametro
- * - setParametroActivo
- * - deleteParametro
- *
- * Aquí los exportamos tal cual.
+ * GET /parametros
+ * params opcionales: q, scope, activo
  */
-
-// LISTAR
 export const listParametros = (params = {}) => {
-  return api.get("/parametros", { params }); // <-- regresa {data: ...}
+  return api.get("/parametros", { params });
 };
 
-// CREAR
-export const createParametro = (body) => {
-  return api.post("/parametros", body);
+/**
+ * POST /parametros
+ */
+export const createParametro = (data) => {
+  return api.post("/parametros", data);
 };
 
-// ACTUALIZAR
-export const updateParametro = (id, body) => {
-  return api.put(`/parametros/${id}`, body);
+/**
+ * PUT /parametros/:id
+ */
+export const updateParametro = (id, data) => {
+  return api.put(`/parametros/${id}`, data);
 };
 
-// ACTIVAR / DESACTIVAR (lo que tu UI llama setParametroActivo)
+/**
+ * PATCH /parametros/:id/activo
+ * body: { activo: 0|1 }
+ */
 export const setParametroActivo = (id, activo) => {
   return api.patch(`/parametros/${id}/activo`, { activo });
 };
 
-// ELIMINAR (lo que tu UI llama deleteParametro)
+/**
+ * DELETE /parametros/:id
+ */
 export const deleteParametro = (id) => {
   return api.delete(`/parametros/${id}`);
-};
-
-// (Opcional) auditoría si la usas después
-export const listParametrosAudit = (params = {}) => {
-  return api.get("/parametros_audit", { params });
-};
-
-export default {
-  listParametros,
-  createParametro,
-  updateParametro,
-  setParametroActivo,
-  deleteParametro,
-  listParametrosAudit,
 };

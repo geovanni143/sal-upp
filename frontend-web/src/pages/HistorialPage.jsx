@@ -69,12 +69,15 @@ export default function HistorialPage() {
     (async () => {
       try {
         const data = await getFiltrosHistorial();
-        setPeriodos(data.periodos || []);
-        setLabs(data.labs || []);
+        const per = Array.isArray(data?.periodos) ? data.periodos : [];
+        const la = Array.isArray(data?.labs) ? data.labs : [];
 
-        if (!data.periodos?.length) return;
+        setPeriodos(per);
+        setLabs(la);
 
-        const periodo = data.periodos[0];
+        if (!per.length) return;
+
+        const periodo = per[0];
 
         const ini = new Date(periodo.fecha_ini);
         const fin = new Date(periodo.fecha_fin);
@@ -87,7 +90,7 @@ export default function HistorialPage() {
         if (al < del) al = del;
 
         const filtrosIniciales = {
-          periodoId: periodo.id,
+          periodoId: String(periodo.id),
           labId: "",
           docenteId: "",
           estado: "",
@@ -97,12 +100,12 @@ export default function HistorialPage() {
 
         setF(filtrosIniciales);
 
-        // Docentes para el periodo completo (todos los labs)
         const docs = await getDocentesHistorial({
           periodoId: periodo.id,
           labId: "",
         });
-        setDocentes(docs);
+
+        setDocentes(Array.isArray(docs) ? docs : []);
       } catch (err) {
         console.error(err);
         alert("No se pudieron cargar los filtros de historial.");
@@ -117,7 +120,7 @@ export default function HistorialPage() {
     const nuevoId = e.target.value;
     if (!nuevoId) return;
 
-    if (f.periodoId && nuevoId !== String(f.periodoId)) {
+    if (f.periodoId && String(nuevoId) !== String(f.periodoId)) {
       const ok = window.confirm(
         "Vas a consultar registros de otro periodo. ¿Deseas continuar?"
       );
@@ -137,7 +140,7 @@ export default function HistorialPage() {
     if (al < del) al = del;
 
     const nuevosFiltros = {
-      periodoId: periodo.id,
+      periodoId: String(periodo.id),
       labId: "",
       docenteId: "",
       estado: "",
@@ -153,7 +156,7 @@ export default function HistorialPage() {
       periodoId: periodo.id,
       labId: "",
     });
-    setDocentes(docs);
+    setDocentes(Array.isArray(docs) ? docs : []);
   };
 
   /* ===========================
@@ -175,7 +178,7 @@ export default function HistorialPage() {
       periodoId: f.periodoId,
       labId,
     });
-    setDocentes(docs);
+    setDocentes(Array.isArray(docs) ? docs : []);
   };
 
   /* ===========================
@@ -200,7 +203,7 @@ export default function HistorialPage() {
     try {
       setLoading(true);
       const data = await getHistorial(f);
-      setRows(data || []);
+      setRows(Array.isArray(data) ? data : []);
       setMostrar(true);
     } catch (err) {
       console.error(err);
@@ -212,9 +215,6 @@ export default function HistorialPage() {
 
   const list = useMemo(() => (mostrar ? rows : []), [rows, mostrar]);
 
-  /* ===========================
-     Render
-     =========================== */
   return (
     <div className="page-shell">
       <div className="menu-card smooth-card" style={{ maxWidth: 720 }}>
@@ -225,46 +225,32 @@ export default function HistorialPage() {
           </button>
           <h1>Historial</h1>
           <div style={{ flex: 1 }} />
-          <button
-            className="btn-back"
-            onClick={handleMostrar}
-            disabled={loading}
-          >
+          <button className="btn-back" onClick={handleMostrar} disabled={loading}>
             {loading ? "Cargando…" : "Mostrar"}
           </button>
-          <button
-            className="btn-save"
-            onClick={() => alert("Generar PDF (pendiente)")}
-          >
+          <button className="btn-save" onClick={() => alert("Generar PDF (pendiente)")}>
             Generar PDF
           </button>
         </div>
 
-        {/* FILTROS – diseño tipo “pastilla” vertical */}
+        {/* FILTROS */}
         <div className="filters-vertical">
           <label>Período</label>
-          <select
-            className="input"
-            value={f.periodoId}
-            onChange={handlePeriodoChange}
-          >
-            {periodos.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nombre}
+          <select className="input" value={f.periodoId} onChange={handlePeriodoChange}>
+            <option value="">Selecciona…</option>
+            {periodos.map((p, idx) => (
+              <option key={`${p.id ?? "x"}-${idx}`} value={p.id ?? ""}>
+                {p.nombre ?? "(Sin nombre)"}
               </option>
             ))}
           </select>
 
           <label>Laboratorio</label>
-          <select
-            className="input"
-            value={f.labId}
-            onChange={handleLabChange}
-          >
+          <select className="input" value={f.labId} onChange={handleLabChange}>
             <option value="">Todos</option>
-            {labs.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.nombre}
+            {labs.map((l, idx) => (
+              <option key={`${l.id ?? "x"}-${idx}`} value={l.id ?? ""}>
+                {l.nombre ?? "(Sin nombre)"}
               </option>
             ))}
           </select>
@@ -276,9 +262,9 @@ export default function HistorialPage() {
             onChange={(e) => handleChange("docenteId", e.target.value)}
           >
             <option value="">Todos</option>
-            {docentes.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.nombre}
+            {docentes.map((d, idx) => (
+              <option key={`${d.id ?? "x"}-${idx}`} value={d.id ?? ""}>
+                {d.nombre ?? d.docente ?? "(Sin nombre)"}
               </option>
             ))}
           </select>
@@ -322,12 +308,10 @@ export default function HistorialPage() {
             </div>
           )}
 
-          {mostrar && list.length === 0 && (
-            <div className="empty">Sin resultados…</div>
-          )}
+          {mostrar && list.length === 0 && <div className="empty">Sin resultados…</div>}
 
-          {list.map((r) => (
-            <div key={r.id} className="list-item">
+          {list.map((r, idx) => (
+            <div key={`${r.id ?? "x"}-${idx}`} className="list-item">
               <div className="item-info">
                 <h4>
                   {r.lab} — {r.docente}
