@@ -28,7 +28,7 @@ r.get("/clases-hoy", requireAuth, async (req, res) => {
 
     // 1) Simular lunes (day = 1)
     let day = new Date().getDay();
-    if (day === 0) day = 5;
+    if (day === 0) day = 3;
     if (day < 1 || day > 5) {
       return res.json({ ok: true, clases: [] });
     }

@@ -8,11 +8,15 @@ const BACKEND = process.env.VITE_BACKEND || "http://localhost:4000";
 export default defineConfig({
   plugins: [react()],
 
+  // 🔑 CLAVE para Render
+  base: "/",
+
+  // 🔧 SOLO para desarrollo local
   server: {
     port: 5173,
     proxy: {
       "/api": {
-        target: BACKEND,
+        target: "http://localhost:4000",
         changeOrigin: true,
         secure: false,
       }
