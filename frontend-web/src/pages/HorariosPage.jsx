@@ -24,8 +24,10 @@ const horasMedias = (() => {
 })();
 
 const toMin = (s) => {
-  const [H, M] = s.split(":").map(Number);
-  return H * 60 + M;
+  const [H, M] = String(s || "0:0")
+    .split(":")
+    .map(Number);
+  return (H || 0) * 60 + (M || 0);
 };
 
 function colorFor(key) {
@@ -45,8 +47,7 @@ function colorFor(key) {
   return palettes[h % palettes.length];
 }
 
-const tituloBloque = (b) =>
-  [b.materia, b.codigo].filter(Boolean).join(" — ");
+const tituloBloque = (b) => [b.materia, b.codigo].filter(Boolean).join(" — ");
 
 const metaGrupo = (b) =>
   [b.grupo ? `Grupo: ${b.grupo}` : null].filter(Boolean).join(" · ");
@@ -62,6 +63,37 @@ const normalizarDia = (dia) => {
     if (!Number.isNaN(n)) return n;
   }
   return 0;
+};
+
+// ===== helpers de estado de periodo (frontend) =====
+const todayYMD = () => {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
+const compareYMD = (a, b) => {
+  // a y b en "YYYY-MM-DD" -> comparación string funciona igual que fecha
+  if (!a || !b) return 0;
+  return a < b ? -1 : a > b ? 1 : 0;
+};
+
+const periodoStatus = (ini, fin) => {
+  const t = todayYMD();
+
+  const iniY = String(ini || "").slice(0, 10);
+  const finY = String(fin || "").slice(0, 10);
+
+  if (!iniY || !finY)
+    return { key: "unknown", label: "Sin fecha", pill: "pill-grey" };
+
+  if (compareYMD(t, iniY) < 0) {
+    return { key: "next", label: "Próximo", pill: "pill-blue" };
+  }
+  if (compareYMD(t, finY) > 0) {
+    return { key: "old", label: "Periodo antiguo", pill: "pill-old" };
+  }
+  return { key: "current", label: "En curso", pill: "pill-warn" };
 };
 
 export default function HorariosPage() {
@@ -106,14 +138,10 @@ export default function HorariosPage() {
         const norm = (x) => {
           const nombre = [x.nombre, x.apellidos].filter(Boolean).join(" ").trim();
           const user =
-            x.email && x.email.includes("@")
-              ? x.email.split("@")[0]
-              : "";
+            x.email && x.email.includes("@") ? x.email.split("@")[0] : "";
           return {
             ...x,
-            _label: [nombre, user && `@${user}`]
-              .filter(Boolean)
-              .join(" — "),
+            _label: [nombre, user && `@${user}`].filter(Boolean).join(" — "),
           };
         };
         setDocentes((u.data || []).map(norm));
@@ -130,23 +158,20 @@ export default function HorariosPage() {
   const cargarCatalogo = async (overrideDeleted) => {
     try {
       const showDeleted =
-        typeof overrideDeleted === "boolean"
-          ? overrideDeleted
-          : catShowDeleted;
+        typeof overrideDeleted === "boolean" ? overrideDeleted : catShowDeleted;
 
       const { data } = await horariosApi.catalogo({
         search: catSearch || undefined,
         mostrar_eliminados: showDeleted ? 1 : 0,
       });
 
-      const raw =
-        Array.isArray(data?.items)
-          ? data.items
-          : Array.isArray(data?.data)
-          ? data.data
-          : Array.isArray(data)
-          ? data
-          : [];
+      const raw = Array.isArray(data?.items)
+        ? data.items
+        : Array.isArray(data?.data)
+        ? data.data
+        : Array.isArray(data)
+        ? data
+        : [];
 
       const norm = raw.map((it) => ({
         ...it,
@@ -221,7 +246,7 @@ export default function HorariosPage() {
       ? "¿Eliminar PERMANENTEMENTE este horario? (no se podrá recuperar)"
       : "¿Eliminar TODO el horario de este laboratorio en ese período? (se puede restaurar después)";
 
-    if (!confirm(msgConfirm)) return;
+    if (!window.confirm(msgConfirm)) return;
 
     try {
       let data;
@@ -263,11 +288,7 @@ export default function HorariosPage() {
       if (data.msg) {
         alert(data.msg);
       } else {
-        alert(
-          catShowDeleted
-            ? "Horario eliminado permanentemente"
-            : "Horario eliminado"
-        );
+        alert(catShowDeleted ? "Horario eliminado permanentemente" : "Horario eliminado");
       }
     } catch (e) {
       console.error(e);
@@ -349,15 +370,9 @@ export default function HorariosPage() {
         lab_id: lab,
       });
 
-      let raw =
-        data?.bloques ??
-        data?.data ??
-        data?.items ??
-        data;
+      let raw = data?.bloques ?? data?.data ?? data?.items ?? data;
 
-      if (!Array.isArray(raw)) {
-        raw = [];
-      }
+      if (!Array.isArray(raw)) raw = [];
 
       const normalizados = raw.map((b) => ({
         ...b,
@@ -398,8 +413,7 @@ export default function HorariosPage() {
       currentKey &&
       nuevoPeriodo &&
       nuevoLab &&
-      (nuevoPeriodo !== currentKey.periodo_id ||
-        nuevoLab !== currentKey.lab_id)
+      (nuevoPeriodo !== currentKey.periodo_id || nuevoLab !== currentKey.lab_id)
     ) {
       const existe = existeHorario(nuevoPeriodo, nuevoLab);
       if (existe) {
@@ -435,8 +449,7 @@ export default function HorariosPage() {
       currentKey &&
       nuevoPeriodo &&
       nuevoLab &&
-      (nuevoPeriodo !== currentKey.periodo_id ||
-        nuevoLab !== currentKey.lab_id)
+      (nuevoPeriodo !== currentKey.periodo_id || nuevoLab !== currentKey.lab_id)
     ) {
       const existe = existeHorario(nuevoPeriodo, nuevoLab);
       if (existe) {
@@ -475,7 +488,7 @@ export default function HorariosPage() {
   // Eliminar SOLO la casilla (30 min) donde se hizo clic
   const onDeleteBloque = (b, hhmm) => {
     if (
-      !confirm(
+      !window.confirm(
         "¿Eliminar solo este bloque de 30 minutos de la clase (puede acortar la duración)?"
       )
     )
@@ -503,18 +516,14 @@ export default function HorariosPage() {
         // Borrar al inicio
         if (sliceIni <= ini && sliceFin < fin) {
           const newIni = sliceFin;
-          if (toMin(newIni) < toMin(fin)) {
-            out.push({ ...x, hora_ini: newIni });
-          }
+          if (toMin(newIni) < toMin(fin)) out.push({ ...x, hora_ini: newIni });
           continue;
         }
 
         // Borrar al final
         if (sliceIni > ini && sliceFin >= fin) {
           const newFin = sliceIni;
-          if (toMin(newFin) > toMin(ini)) {
-            out.push({ ...x, hora_fin: newFin });
-          }
+          if (toMin(newFin) > toMin(ini)) out.push({ ...x, hora_fin: newFin });
           continue;
         }
 
@@ -523,9 +532,7 @@ export default function HorariosPage() {
           const leftFin = sliceIni;
           const rightIni = sliceFin;
 
-          if (toMin(leftFin) > toMin(ini)) {
-            out.push({ ...x, hora_fin: leftFin });
-          }
+          if (toMin(leftFin) > toMin(ini)) out.push({ ...x, hora_fin: leftFin });
           if (toMin(rightIni) < toMin(fin)) {
             out.push({
               ...x,
@@ -544,8 +551,7 @@ export default function HorariosPage() {
   };
 
   const guardar = async () => {
-    if (!periodoId || !labId)
-      return alert("Selecciona periodo y laboratorio");
+    if (!periodoId || !labId) return alert("Selecciona periodo y laboratorio");
 
     // Validar docente
     for (const b of plan) {
@@ -664,9 +670,7 @@ export default function HorariosPage() {
 
   const upsertFromEditor = (payload, existing) => {
     setPlan((prev) => {
-      if (!existing) {
-        return [...prev, payload];
-      }
+      if (!existing) return [...prev, payload];
       return prev.map((b) => (b === existing ? { ...existing, ...payload } : b));
     });
     setEditor(null);
@@ -709,15 +713,21 @@ export default function HorariosPage() {
                 <span>{horarioActual.bloques_activos} bloque(s)</span>
               </div>
             </div>
+
             <div className="hs-summary__right">
-              <span
-                className={
-                  "pill " +
-                  (horarioActual.en_curso ? "pill-warn" : "pill-ok")
-                }
-              >
-                {horarioActual.en_curso ? "En curso" : "Fuera de periodo"}
-              </span>
+              {/* ✅ PILL 3 ESTADOS (Próximo / En curso / Periodo antiguo) */}
+              {(() => {
+                const st = periodoStatus(
+                  horarioActual.periodo_ini,
+                  horarioActual.periodo_fin
+                );
+                return (
+                  <span className={"pill " + st.pill}>
+                    {st.label}
+                  </span>
+                );
+              })()}
+
               <span
                 className={
                   "pill " +
@@ -800,16 +810,14 @@ export default function HorariosPage() {
               </p>
             ) : (
               catalogo.map((item) => (
-                <div
-                  className="row"
-                  key={`${item.periodo_id}-${item.lab_id}`}
-                >
+                <div className="row" key={`${item.periodo_id}-${item.lab_id}`}>
                   <div className="row__title">
                     <div>
                       <strong>{item.periodo_nombre}</strong>
                       <span className="row__lab">{item.lab_nombre}</span>
                     </div>
                   </div>
+
                   <div className="row__meta">
                     <span>
                       {item.periodo_ini} — {item.periodo_fin}
@@ -817,16 +825,19 @@ export default function HorariosPage() {
                     <span className="pill pill-muted">
                       {item.bloques_activos} bloque(s)
                     </span>
+
                     {!catShowDeleted && (
                       <>
-                        <span
-                          className={
-                            "pill " +
-                            (item.en_curso ? "pill-warn" : "pill-ok")
-                          }
-                        >
-                          {item.en_curso ? "En curso" : "Fuera de periodo"}
-                        </span>
+                        {/* ✅ PILL 3 ESTADOS (Próximo / En curso / Periodo antiguo) */}
+                        {(() => {
+                          const st = periodoStatus(item.periodo_ini, item.periodo_fin);
+                          return (
+                            <span className={"pill " + st.pill}>
+                              {st.label}
+                            </span>
+                          );
+                        })()}
+
                         <span
                           className={
                             "pill " +
@@ -846,13 +857,11 @@ export default function HorariosPage() {
                       </>
                     )}
                   </div>
+
                   <div className="row__actions">
                     {!catShowDeleted && (
                       <>
-                        <button
-                          className="btn ghost"
-                          onClick={() => abrirHorario(item)}
-                        >
+                        <button className="btn ghost" onClick={() => abrirHorario(item)}>
                           Ver / editar
                         </button>
 
@@ -866,32 +875,20 @@ export default function HorariosPage() {
                       </>
                     )}
 
-                    <button
-                      className="btn ghost"
-                      onClick={() => descargarPdf(item)}
-                    >
+                    <button className="btn ghost" onClick={() => descargarPdf(item)}>
                       PDF
                     </button>
 
                     {!catShowDeleted ? (
-                      <button
-                        className="btn danger"
-                        onClick={() => eliminarHorario(item)}
-                      >
+                      <button className="btn danger" onClick={() => eliminarHorario(item)}>
                         Eliminar
                       </button>
                     ) : (
                       <>
-                        <button
-                          className="btn ghost"
-                          onClick={() => restaurarHorario(item)}
-                        >
+                        <button className="btn ghost" onClick={() => restaurarHorario(item)}>
                           Restaurar
                         </button>
-                        <button
-                          className="btn danger"
-                          onClick={() => eliminarHorario(item)}
-                        >
+                        <button className="btn danger" onClick={() => eliminarHorario(item)}>
                           Eliminar permanente
                         </button>
                       </>
@@ -913,11 +910,7 @@ export default function HorariosPage() {
             ◂ Regresar
           </button>
 
-          <select
-            className="input"
-            value={periodoId}
-            onChange={handlePeriodoChange}
-          >
+          <select className="input" value={periodoId} onChange={handlePeriodoChange}>
             <option value="">Periodo…</option>
             {periodos.map((p) => (
               <option key={p.id} value={p.id}>
@@ -926,11 +919,7 @@ export default function HorariosPage() {
             ))}
           </select>
 
-          <select
-            className="input"
-            value={labId}
-            onChange={handleLabChange}
-          >
+          <select className="input" value={labId} onChange={handleLabChange}>
             <option value="">Laboratorio…</option>
             {labs.map((l) => (
               <option key={l.id} value={l.id}>
@@ -951,6 +940,7 @@ export default function HorariosPage() {
             >
               Nuevo horario
             </button>
+
             <button
               className="btn ghost"
               onClick={() => cargarSemana()}
@@ -958,6 +948,7 @@ export default function HorariosPage() {
             >
               Actualizar
             </button>
+
             <button className="btn" onClick={guardar}>
               Guardar semana
             </button>
@@ -969,10 +960,10 @@ export default function HorariosPage() {
             {err}
           </p>
         )}
+
         {!periodoId || !labId ? (
           <p className="hs__muted">
-            Selecciona un periodo y un laboratorio para crear o editar el
-            horario.
+            Selecciona un periodo y un laboratorio para crear o editar el horario.
           </p>
         ) : null}
 
@@ -986,6 +977,7 @@ export default function HorariosPage() {
                 ))}
               </tr>
             </thead>
+
             <tbody>
               {horasMedias.map((hhmm) => (
                 <tr key={hhmm}>
@@ -998,9 +990,7 @@ export default function HorariosPage() {
 
                     const docente =
                       b && b.docente_id
-                        ? docentes.find(
-                            (u) => Number(u.id) === Number(b.docente_id)
-                          )
+                        ? docentes.find((u) => Number(u.id) === Number(b.docente_id))
                         : null;
                     const docenteLabel = docente ? docente._label : null;
 
@@ -1020,15 +1010,11 @@ export default function HorariosPage() {
                             }}
                             onClick={(ev) => ev.stopPropagation()}
                           >
-                            <div className="hs__btitle">
-                              {tituloBloque(b)}
-                            </div>
+                            <div className="hs__btitle">{tituloBloque(b)}</div>
                             <div className="hs__bmeta">{metaGrupo(b)}</div>
                             <div className="hs__bmeta">
                               <strong>Imparte:</strong>{" "}
-                              {docenteLabel ||
-                                b.docente_nombre ||
-                                "Sin docente asignado"}
+                              {docenteLabel || b.docente_nombre || "Sin docente asignado"}
                             </div>
                             <button
                               className="hs__mini danger"
@@ -1075,31 +1061,20 @@ function PopoverEditor({ style, base, docentes, existing, onCancel, onSave }) {
     existing?.docente_id ? String(existing.docente_id) : ""
   );
 
-  const [horaIni, setHoraIni] = useState(
-    existing?.hora_ini || base.hora_ini
-  );
-  const horasIni = useMemo(
-    () => timeRange("07:00", "18:30", 30),
-    []
-  );
+  const [horaIni, setHoraIni] = useState(existing?.hora_ini || base.hora_ini);
+  const horasIni = useMemo(() => timeRange("07:00", "18:30", 30), []);
 
   const [horaFin, setHoraFin] = useState(
     existing?.hora_fin || addMinutes(base.hora_ini, 60)
   );
 
-  const horasFin = useMemo(
-    () => timeRange(horaIni, "19:00", 30).slice(1),
-    [horaIni]
-  );
+  const horasFin = useMemo(() => timeRange(horaIni, "19:00", 30).slice(1), [horaIni]);
 
   const submit = () => {
-    if (horaFin <= horaIni)
-      return alert("Hora fin debe ser mayor que inicio");
+    if (horaFin <= horaIni) return alert("Hora fin debe ser mayor que inicio");
 
     if (!docenteId) {
-      alert(
-        "Selecciona quién imparte la clase (docente, admin o superadmin)."
-      );
+      alert("Selecciona quién imparte la clase (docente, admin o superadmin).");
       return;
     }
 
@@ -1114,9 +1089,7 @@ function PopoverEditor({ style, base, docentes, existing, onCancel, onSave }) {
       activo: 1,
     };
 
-    if (existing?.id) {
-      payload.id = existing.id;
-    }
+    if (existing?.id) payload.id = existing.id;
 
     onSave(payload, existing || null);
   };
@@ -1178,6 +1151,7 @@ function PopoverEditor({ style, base, docentes, existing, onCancel, onSave }) {
             placeholder="RETL_07_02"
           />
         </div>
+
         <div>
           <label>Hora inicio</label>
           <select
@@ -1192,6 +1166,7 @@ function PopoverEditor({ style, base, docentes, existing, onCancel, onSave }) {
             ))}
           </select>
         </div>
+
         <div>
           <label>Hora fin</label>
           <select
@@ -1209,7 +1184,7 @@ function PopoverEditor({ style, base, docentes, existing, onCancel, onSave }) {
       </div>
 
       <div
-        className="hs-actions"
+        className="_toggleActivo"
         style={{
           display: "flex",
           gap: 8,
@@ -1230,23 +1205,31 @@ function PopoverEditor({ style, base, docentes, existing, onCancel, onSave }) {
 
 /* Helpers */
 function addMinutes(hhmm, m) {
-  const [H, M] = hhmm.split(":").map(Number);
-  const t = H * 60 + M + m;
-  return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(
-    t % 60
-  ).padStart(2, "0")}`;
+  const [H, M] = String(hhmm || "0:0")
+    .split(":")
+    .map(Number);
+  const t = (H || 0) * 60 + (M || 0) + m;
+  return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(
+    2,
+    "0"
+  )}`;
 }
+
 function timeRange(from, to, step) {
   const toMinLoc = (s) => {
-    const [H, M] = s.split(":").map(Number);
-    return H * 60 + M;
+    const [H, M] = String(s || "0:0")
+      .split(":")
+      .map(Number);
+    return (H || 0) * 60 + (M || 0);
   };
+
   const out = [];
   for (let t = toMinLoc(from); t <= toMinLoc(to); t += step) {
     out.push(
-      `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(
-        t % 60
-      ).padStart(2, "0")}`
+      `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(
+        2,
+        "0"
+      )}`
     );
   }
   return out;

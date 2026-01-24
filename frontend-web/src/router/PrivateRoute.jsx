@@ -1,18 +1,23 @@
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+// src/router/PrivateRoute.jsx
+import { Navigate, useLocation } from "react-router-dom";
 import { getToken, getRole } from "../state/auth";
 
-export default function PrivateRoute({ allow = [] }) {
-  const token = getToken();
-  const role  = getRole();
-  const loc   = useLocation();
+export default function PrivateRoute({ allow = [], children }) {
+  const loc = useLocation();
 
-  if (!token) {
-    const target = loc.pathname.startsWith("/admin") ? "/login-admin" : "/login";
-    return <Navigate to={target} replace />;
+  const token = getToken();
+  const role = getRole();
+
+  // Sin sesión -> login
+  if (!token || !role) {
+    return <Navigate to="/login" replace state={{ from: loc.pathname }} />;
   }
 
-  if (role === "superadmin") return <Outlet />;      // pasa siempre
-  if (allow.length && !allow.includes(role)) return <Navigate to="/403" replace />;
+  // No permitido -> 403
+  if (allow?.length && !allow.includes(role)) {
+    return <Navigate to="/403" replace />;
+  }
 
-  return <Outlet />;
+  // OK
+  return children;
 }

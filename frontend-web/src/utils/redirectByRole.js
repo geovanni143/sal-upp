@@ -1,5 +1,14 @@
-export function redirectByRole(rol) {
-  if (rol === "superadmin" || rol === "admin") return "/admin";
-  if (rol === "docente") return "/docente";
-  return "/login";
+// src/utils/redirectByRole.js
+
+export function redirectByRole(role) {
+  switch (role) {
+    case "superadmin":
+    case "admin":
+    case "admin_lab":
+      return "/admin";
+    case "docente":
+      return "/docente";
+    default:
+      return "/login";
+  }
 }

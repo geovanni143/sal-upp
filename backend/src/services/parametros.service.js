@@ -1,5 +1,9 @@
 import { pool } from "./db.js";
 
+/* =========================
+   Helpers
+   ========================= */
+
 function castValue(tipo, raw) {
   const s = raw == null ? "" : String(raw);
 
@@ -27,6 +31,46 @@ function stringifyValue(tipo, val) {
   if (tipo === "json") return JSON.stringify(val ?? null);
   if (tipo === "bool") return val ? "true" : "false";
   return String(val ?? "");
+}
+
+/**
+ * Resolver parámetro con jerarquía:
+ * 1) GLOBAL
+ * 2) ROL (si se pasa roleId)
+ * 3) LAB (si se pasa labId)
+ * 4) PERIODO (si se pasa periodoId)
+ *
+ * Puedes ajustar prioridad si quieres (por ejemplo PERIODO > LAB > ROL > GLOBAL)
+ */
+export async function resolveParametro(clave, { roleId, labId, periodoId } = {}) {
+  const scopes = [
+    { scope: "PERIODO", ref: periodoId },
+    { scope: "LAB", ref: labId },
+    { scope: "ROL", ref: roleId },
+    { scope: "GLOBAL", ref: null },
+  ];
+
+  for (const s of scopes) {
+    if (s.scope !== "GLOBAL" && (s.ref === null || s.ref === undefined)) continue;
+
+    const [rows] = await pool.query(
+      `SELECT id, clave, tipo, valor, scope, scope_ref_id
+       FROM parametros
+       WHERE clave=? AND scope=? AND (scope_ref_id <=> ?) AND activo=1
+       LIMIT 1`,
+      [clave, s.scope, s.ref ?? null]
+    );
+
+    if (rows.length) {
+      const p = rows[0];
+      return {
+        ...p,
+        valor_cast: castValue(p.tipo, p.valor),
+      };
+    }
+  }
+
+  return null;
 }
 
 export async function listParametros({ q, scope, scope_ref_id, activo } = {}) {
@@ -83,6 +127,7 @@ export async function upsertParametro({
   activo = 1,
   audit = {},
 }) {
+  // Buscar existente
   const [exist] = await pool.query(
     `SELECT id, valor FROM parametros WHERE clave=? AND scope=? AND (scope_ref_id <=> ?) LIMIT 1`,
     [clave, scope, scope_ref_id]
@@ -112,6 +157,7 @@ export async function upsertParametro({
     parametroId = ins.insertId;
   }
 
+  // Audit
   await pool.query(
     `INSERT INTO parametros_audit
      (parametro_id, clave, scope, scope_ref_id, old_valor, new_valor, user_id, user_email, ip)

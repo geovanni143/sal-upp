@@ -791,3 +791,264 @@ input, select {
 
 
 
+/* Próximo: azul suave */
+.pill-proximo {
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border: 1px solid #93C5FD;
+}
+
+/* Periodo antiguo: rojo suave */
+.pill-antiguo {
+  background: #FEF2F2;
+  color: #B91C1C;
+  border: 1px solid #FCA5A5;
+}
+
+
+
+.pill.pill-blue {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #93c5fd;
+}
+
+.pill.pill-old {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+/* ===== Botón Actualizar (mismo diseño del sistema) ===== */
+.btn {
+  border: none;
+  cursor: pointer;
+  border-radius: 14px;
+  padding: 10px 14px;
+  font-weight: 600;
+  transition: 0.15s ease;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-refresh {
+  background: #4c1d95; /* morado del sistema */
+  color: white;
+  min-width: 140px;
+}
+
+.btn-refresh:hover {
+  opacity: 0.95;
+}
+
+/* ===== Registro pill (muy claro) ===== */
+.registro-pill {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.registro-registrada {
+  background: #ecfdf3;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.registro-sin_registro,
+.registro-sin-registrar,
+.registro-sinregistrar {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+
+
+
+
+
+
+
+/* =========================================================
+   MENU ADMIN — Ajustes para filtros + periodo-pill (SAL-UPP)
+   Pegar al FINAL del archivo
+   ========================================================= */
+
+/* 1) Evitar el grid de 4 columnas (rompía el layout) */
+.page-shell .filters-row{
+  display:flex !important;
+  gap: 10px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* inputs usados por MenuAdmin.jsx */
+.page-shell .filter-input{
+  flex: 1 1 220px;
+  min-width: 180px;
+  width: 100%;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  color: #374151;
+  outline: none;
+}
+
+.page-shell .filter-input:focus{
+  border-color: #4c1d95;
+  box-shadow: 0 0 0 2px rgba(76, 29, 149, 0.12);
+  background: #fff;
+}
+
+/* Asegura que el botón actualizar no se comprima feo */
+.page-shell .btn.btn-refresh{
+  flex: 0 0 auto;
+  min-width: 140px;
+}
+
+/* 2) Scroll interno para que no “estire” el card */
+.page-shell .class-list{
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+/* 3) Meta row + docente-tag (si no los tienes definidos) */
+.page-shell .class-meta-row{
+  display:flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  color: #475569;
+  margin-top: 2px;
+}
+
+.page-shell .class-meta-estado{
+  font-weight: 700;
+  color: #334155;
+}
+
+.page-shell .class-meta-dia{
+  font-weight: 800;
+  color: #334155;
+}
+
+.page-shell .docente-tag{
+  display:inline-flex;
+  align-items:center;
+  width: fit-content;
+  margin-top: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  border: 1px solid rgba(99,102,241,.22);
+  font-weight: 800;
+  font-size: 12px;
+}
+
+/* 4) Periodo pill (nuevo) — separado del registro */
+.page-shell .periodo-pill{
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+  border: 1px solid transparent;
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.page-shell .periodo-pill .periodo-main{
+  font-weight: 900;
+}
+
+.page-shell .periodo-pill .periodo-hint{
+  font-weight: 700;
+  opacity: .9;
+}
+
+/* Próximo */
+.page-shell .periodo-proximo{
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border-color: #93C5FD;
+}
+
+/* En curso */
+.page-shell .periodo-en_curso{
+  background: #ECFDF3;
+  color: #166534;
+  border-color: #86EFAC;
+}
+
+/* Antiguo */
+.page-shell .periodo-antiguo{
+  background: #FEF2F2;
+  color: #991B1B;
+  border-color: #FCA5A5;
+}
+
+/* Responsive: en pantallas pequeñas apilar más cómodo */
+@media (max-width: 520px){
+  .page-shell .filters-row{
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .page-shell .btn.btn-refresh{
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+
+/* Banner global de periodo (arriba de filtros) */
+.periodo-banner{
+  margin: 8px 4px 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: 12.5px;
+  font-weight: 800;
+  border: 1px solid transparent;
+}
+
+.periodo-en_curso{
+  background:#ecfdf3;
+  border-color:#86efac;
+  color:#166534;
+}
+
+.periodo-proximo{
+  background:#eff6ff;
+  border-color:#93c5fd;
+  color:#1d4ed8;
+}
+
+.periodo-antiguo{
+  background:#fef2f2;
+  border-color:#fca5a5;
+  color:#b91c1c;
+}

@@ -1,33 +1,83 @@
+// backend/src/middlewares/auth.js
 import jwt from "jsonwebtoken";
 
-/** Verifica JWT y normaliza rol/role */
-export function verifyJWT(req, res, next) {
-  const auth = req.headers.authorization || "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+/* =========================================================
+   AUTH MIDDLEWARE (SAL-UPP)
+   - Exporta: requireAuth, requireRole
+   - requireRole soporta:
+       requireRole("admin")
+       requireRole("admin","superadmin")
+       requireRole(["admin","superadmin"])
+   ========================================================= */
 
-  if (!token) return res.status(401).json({ error: "No token" });
+function getTokenFromHeader(req) {
+  const h = req.headers.authorization || req.headers.Authorization;
+  if (!h) return null;
 
+  const parts = String(h).split(" ");
+  if (parts.length === 2 && /^Bearer$/i.test(parts[0])) return parts[1];
+
+  return String(h).trim();
+}
+
+export function requireAuth(req, res, next) {
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET || "secretito");
-    // payload esperado: { id, username, rol }
-    const rol = payload.rol || payload.role || null;
-    req.user = { ...payload, rol, role: rol }; // compat: deja ambas keys
-    next();
-  } catch {
-    return res.status(401).json({ error: "Token inválido" });
+    const token = getTokenFromHeader(req);
+
+    if (!token) {
+      return res.status(401).json({ error: "No autorizado: falta token" });
+    }
+
+    const secret = process.env.JWT_SECRET || process.env.SECRET || "dev_secret";
+    const payload = jwt.verify(token, secret);
+
+    // Normaliza el usuario en req.user
+    req.user = payload?.user || payload;
+
+    return next();
+  } catch (err) {
+    return res.status(401).json({ error: "No autorizado: token inválido" });
   }
 }
 
-/** Restringe el acceso a roles permitidos (superadmin siempre pasa) */
-export function requireRole(...allowed) {
+/**
+ * requireRole variádico:
+ *  - requireRole("admin","superadmin")
+ *  - requireRole(["admin","superadmin"])
+ */
+export function requireRole(...roles) {
+  let allowed = roles;
+
+  // Si viene como un arreglo único: requireRole(["admin","superadmin"])
+  if (allowed.length === 1 && Array.isArray(allowed[0])) {
+    allowed = allowed[0];
+  }
+
+  // Normaliza strings
+  allowed = (allowed || []).filter(Boolean);
+
   return (req, res, next) => {
-    const rol = req.user?.rol;
-    if (!rol) return res.status(401).json({ error: "No autorizado" });
-    if (rol === "superadmin") return next(); // 👈 siempre pasa
-    if (!allowed.includes(rol)) return res.status(403).json({ error: "Prohibido" });
-    next();
+    const user = req.user || {};
+    const role = user.rol || user.role;
+
+    if (!role) {
+      return res.status(403).json({ error: "Prohibido: rol no detectado" });
+    }
+
+    // Si no hay allow list, deja pasar
+    if (!allowed.length) return next();
+
+    if (!allowed.includes(role)) {
+      return res.status(403).json({ error: "Prohibido: rol no permitido" });
+    }
+
+    return next();
   };
 }
 
-// Alias
-export { verifyJWT as requireAuth };
+/* =========================
+   ALIASES (por compatibilidad)
+========================= */
+export const auth = requireAuth;
+export const authorize = requireRole;
+export const requireRoles = requireRole;
