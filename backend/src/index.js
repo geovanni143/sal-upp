@@ -37,12 +37,16 @@ const uploadsPath = path.join(__dirname, "..", "uploads");
 const app = express();
 
 // ===============================
-// CORS
+// CORS (LOCAL + RENDER)
 // ===============================
 app.use(
   cors({
-    origin: "http://localhost:5173",
-    credentials: true,
+    origin: [
+      "http://localhost:5173",
+      "https://sal-upp-frontend.onrender.com",
+    ],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    credentials: false,
   })
 );
 
@@ -66,7 +70,8 @@ app.get("/api/health", (_req, res) => {
 // ===============================
 // RUTAS API
 // ===============================
-// Auth base
+
+// Auth (login, logout, etc.)
 app.use("/api", authRoutes);
 
 // Recursos
@@ -80,16 +85,12 @@ app.use("/api/me", meRoutes);
 app.use("/api/docentes", docentesRoutes);
 app.use("/api/incidentes", incidentesRoutes);
 app.use("/api/historial", historialRoutes);
-
-// Invitados (solo 1 vez, aquí)
 app.use("/api/invitados", invitadosRoutes);
-
-// Parámetros (solo si existen los archivos)
 app.use("/api/parametros", parametrosRoutes);
 app.use("/api/parametros_audit", parametrosAuditRoutes);
 
 // ===============================
-// 404 API (para ver claro qué ruta falta)
+// 404 API
 // ===============================
 app.use("/api", (req, res) => {
   res.status(404).json({
@@ -110,13 +111,13 @@ app.use((err, _req, res, _next) => {
 // ===============================
 // SERVER
 // ===============================
-const PORT = Number(process.env.PORT || 4000);
+const PORT = Number(process.env.PORT || 10000);
 
 app.listen(PORT, () => {
   console.log("----------------------------------------");
   console.log(" SAL-UPP backend corriendo en :", PORT);
-  console.log(" Base URL API                : http://localhost:" + PORT + "/api");
-  console.log(" CORS permitido desde        : http://localhost:5173");
-  console.log(" Archivos estáticos en       :", uploadsPath);
+  console.log(" API disponible en            : /api");
+  console.log(" CORS permitido desde         : localhost + Render");
+  console.log(" Archivos estáticos en        :", uploadsPath);
   console.log("----------------------------------------");
 });
