@@ -301,106 +301,124 @@ router.get(
       sql += " ORDER BY a.fecha DESC, h.hora_ini";
 
       const [rows] = await conn.query(sql, params);
+/* =========================
+   PDF
+========================= */
+const doc = new PDFDocument({ size: "A4", margin: 40 });
 
-      /* =========================
-         PDF
-      ========================= */
-      const doc = new PDFDocument({ size: "A4", margin: 40 });
+res.setHeader("Content-Type", "application/pdf");
+res.setHeader(
+  "Content-Disposition",
+  "attachment; filename=historial_general.pdf"
+);
 
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader(
-        "Content-Disposition",
-        "attachment; filename=historial_general.pdf"
-      );
+doc.pipe(res);
 
-      doc.pipe(res);
+/* ===== HELPERS ===== */
+const formatFecha = (f) => {
+  if (!f) return "—";
+  const d = new Date(f);
+  return d.toISOString().slice(0, 10); // YYYY-MM-DD
+};
 
-      /* ===== ENCABEZADO ===== */
-      doc.fontSize(16).text("SAL-UPP", { align: "center" });
-      doc.moveDown(0.3);
-      doc.fontSize(14).text("Historial General de Asistencias", {
-        align: "center",
+/* ===== ENCABEZADO ===== */
+doc.fontSize(16).text("SAL-UPP", { align: "center" });
+doc.moveDown(0.3);
+doc.fontSize(14).text("Historial General de Asistencias", {
+  align: "center",
+});
+
+doc.moveDown(0.5);
+doc.fontSize(9).text(
+  `Periodo ID: ${periodoId} | Desde: ${del || "—"} | Hasta: ${al || "—"}`,
+  { align: "center" }
+);
+
+doc.moveDown(0.3);
+doc.text(`Generado: ${new Date().toLocaleString()}`, {
+  align: "center",
+});
+
+doc.moveDown(1);
+
+/* ===== TABLA ===== */
+const startX = 40;
+let y = doc.y;
+
+const col = {
+  docente: startX,        // 40
+  lab: startX + 130,      // 170
+  fecha: startX + 230,    // 270
+  horario: startX + 300,  // 340
+  estado: startX + 370,   // 410
+  foto: startX + 440,     // 480
+  firma: startX + 490,    // 530
+};
+
+doc.font("Helvetica-Bold").fontSize(9);
+doc.text("Docente", col.docente, y);
+doc.text("Lab", col.lab, y);
+doc.text("Fecha", col.fecha, y);
+doc.text("Horario", col.horario, y);
+doc.text("Estado", col.estado, y);
+doc.text("Foto", col.foto, y);
+doc.text("Firma", col.firma, y);
+
+y += 15;
+doc.moveTo(startX, y).lineTo(550, y).stroke();
+y += 6;
+
+doc.font("Helvetica").fontSize(8);
+
+/* ===== FILAS ===== */
+for (const r of rows) {
+  if (y > 740) {
+    doc.addPage();
+    y = 50;
+  }
+
+  doc.text(r.docente || "—", col.docente, y, { width: 120 });
+  doc.text(r.lab || "—", col.lab, y, { width: 90 });
+  doc.text(formatFecha(r.fecha), col.fecha, y, { width: 60 });
+
+  doc.text(
+    r.hora_ini && r.hora_fin
+      ? `${r.hora_ini.slice(0, 5)}-${r.hora_fin.slice(0, 5)}`
+      : "—",
+    col.horario,
+    y,
+    { width: 60 }
+  );
+
+  doc.text(r.estado || "—", col.estado, y, { width: 60 });
+
+  // 📸 FOTO
+  if (r.foto_url) {
+    const fotoPath = path.join(process.cwd(), r.foto_url);
+    if (fs.existsSync(fotoPath)) {
+      doc.image(fotoPath, col.foto, y - 2, {
+        width: 28,
+        height: 28,
       });
+    }
+  }
 
-      doc.moveDown(0.5);
-      doc.fontSize(9).text(
-        `Periodo ID: ${periodoId} | Desde: ${del || "—"} | Hasta: ${al || "—"}`,
-        { align: "center" }
-      );
-
-      doc.moveDown(0.3);
-      doc.text(`Generado: ${new Date().toLocaleString()}`, {
-        align: "center",
+  // ✍️ FIRMA
+  if (r.firma_url) {
+    const firmaPath = path.join(process.cwd(), r.firma_url);
+    if (fs.existsSync(firmaPath)) {
+      doc.image(firmaPath, col.firma, y - 2, {
+        width: 28,
+        height: 28,
       });
+    }
+  }
 
-      doc.moveDown(1);
+  y += 36;
+}
 
-      /* ===== TABLA ===== */
-      const startX = 40;
-      let y = doc.y;
+doc.end();
 
-      const col = {
-        docente: startX,
-        lab: startX + 120,
-        fecha: startX + 210,
-        horario: startX + 260,
-        estado: startX + 330,
-        foto: startX + 400,
-        firma: startX + 450,
-      };
-
-      doc.font("Helvetica-Bold").fontSize(9);
-      doc.text("Docente", col.docente, y);
-      doc.text("Lab", col.lab, y);
-      doc.text("Fecha", col.fecha, y);
-      doc.text("Horario", col.horario, y);
-      doc.text("Estado", col.estado, y);
-      doc.text("Foto", col.foto, y);
-      doc.text("Firma", col.firma, y);
-
-      y += 15;
-      doc.moveTo(startX, y).lineTo(550, y).stroke();
-      y += 5;
-
-      doc.font("Helvetica").fontSize(8);
-
-      for (const r of rows) {
-        if (y > 750) {
-          doc.addPage();
-          y = 50;
-        }
-
-        doc.text(r.docente || "—", col.docente, y, { width: 110 });
-        doc.text(r.lab || "—", col.lab, y);
-        doc.text(r.fecha || "—", col.fecha, y);
-        doc.text(
-          r.hora_ini && r.hora_fin
-            ? `${r.hora_ini.slice(0, 5)}-${r.hora_fin.slice(0, 5)}`
-            : "—",
-          col.horario,
-          y
-        );
-        doc.text(r.estado || "—", col.estado, y);
-
-        const fotoPath = r.foto_url
-          ? path.join(process.cwd(), r.foto_url)
-          : null;
-        const firmaPath = r.firma_url
-          ? path.join(process.cwd(), r.firma_url)
-          : null;
-
-        if (fotoPath && fs.existsSync(fotoPath)) {
-          doc.image(fotoPath, col.foto, y, { width: 30, height: 30 });
-        }
-
-        if (firmaPath && fs.existsSync(firmaPath)) {
-          doc.image(firmaPath, col.firma, y, { width: 30, height: 30 });
-        }
-
-        y += 35;
-      }
-
-      doc.end();
     } catch (err) {
       console.error("Error PDF historial admin:", err);
       res.status(500).json({ error: "Error al generar PDF" });
