@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import {
   getFiltrosHistorial,
   getDocentesHistorial,
@@ -78,13 +79,11 @@ export default function HistorialPage() {
         if (!per.length) return;
 
         const periodo = per[0];
-
         const ini = new Date(periodo.fecha_ini);
         const fin = new Date(periodo.fecha_fin);
 
         let del = getMonday();
         let al = getFriday();
-
         if (del < ini) del = ini;
         if (al > fin) al = fin;
         if (al < del) al = del;
@@ -181,9 +180,6 @@ export default function HistorialPage() {
     setDocentes(Array.isArray(docs) ? docs : []);
   };
 
-  /* ===========================
-     Cambio simple de filtro
-     =========================== */
   const handleChange = (field, value) => {
     setF((prev) => ({
       ...prev,
@@ -192,7 +188,7 @@ export default function HistorialPage() {
   };
 
   /* ===========================
-     Botón Mostrar
+     Mostrar historial
      =========================== */
   const handleMostrar = async () => {
     if (!f.periodoId || !f.del || !f.al) {
@@ -213,6 +209,39 @@ export default function HistorialPage() {
     }
   };
 
+  /* ===========================
+     Generar PDF (CON TOKEN)
+     =========================== */
+  const handleGenerarPDF = async () => {
+    try {
+      const API = import.meta.env.VITE_API_URL;
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        alert("Sesión no válida. Inicia sesión nuevamente.");
+        return;
+      }
+
+      const response = await axios.get(`${API}/historial/pdf`, {
+        params: f,
+        responseType: "blob",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const blob = new Blob([response.data], {
+        type: "application/pdf",
+      });
+
+      const url = URL.createObjectURL(blob);
+      window.open(url);
+    } catch (err) {
+      console.error(err);
+      alert("No se pudo generar el PDF.");
+    }
+  };
+
   const list = useMemo(() => (mostrar ? rows : []), [rows, mostrar]);
 
   return (
@@ -228,19 +257,9 @@ export default function HistorialPage() {
           <button className="btn-back" onClick={handleMostrar} disabled={loading}>
             {loading ? "Cargando…" : "Mostrar"}
           </button>
-<button
-  className="btn-save"
-  onClick={() => {
-    const qs = new URLSearchParams(f).toString();
-    window.open(
-      `${import.meta.env.VITE_API_URL}/historial/pdf?${qs}`,
-      "_blank"
-    );
-  }}
->
-  Generar PDF
-</button>
-
+          <button className="btn-save" onClick={handleGenerarPDF}>
+            Generar PDF
+          </button>
         </div>
 
         {/* FILTROS */}
@@ -249,8 +268,8 @@ export default function HistorialPage() {
           <select className="input" value={f.periodoId} onChange={handlePeriodoChange}>
             <option value="">Selecciona…</option>
             {periodos.map((p, idx) => (
-              <option key={`${p.id ?? "x"}-${idx}`} value={p.id ?? ""}>
-                {p.nombre ?? "(Sin nombre)"}
+              <option key={`${p.id}-${idx}`} value={p.id}>
+                {p.nombre}
               </option>
             ))}
           </select>
@@ -259,8 +278,8 @@ export default function HistorialPage() {
           <select className="input" value={f.labId} onChange={handleLabChange}>
             <option value="">Todos</option>
             {labs.map((l, idx) => (
-              <option key={`${l.id ?? "x"}-${idx}`} value={l.id ?? ""}>
-                {l.nombre ?? "(Sin nombre)"}
+              <option key={`${l.id}-${idx}`} value={l.id}>
+                {l.nombre}
               </option>
             ))}
           </select>
@@ -273,8 +292,8 @@ export default function HistorialPage() {
           >
             <option value="">Todos</option>
             {docentes.map((d, idx) => (
-              <option key={`${d.id ?? "x"}-${idx}`} value={d.id ?? ""}>
-                {d.nombre ?? d.docente ?? "(Sin nombre)"}
+              <option key={`${d.id}-${idx}`} value={d.id}>
+                {d.nombre}
               </option>
             ))}
           </select>
@@ -318,10 +337,12 @@ export default function HistorialPage() {
             </div>
           )}
 
-          {mostrar && list.length === 0 && <div className="empty">Sin resultados…</div>}
+          {mostrar && list.length === 0 && (
+            <div className="empty">Sin resultados…</div>
+          )}
 
           {list.map((r, idx) => (
-            <div key={`${r.id ?? "x"}-${idx}`} className="list-item">
+            <div key={`${r.id}-${idx}`} className="list-item">
               <div className="item-info">
                 <h4>
                   {r.lab} — {r.docente}
