@@ -47,7 +47,6 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Permitir requests sin origin (Postman, curl, healthchecks)
       if (!origin) return callback(null, true);
 
       if (allowedOrigins.includes(origin)) {
@@ -61,6 +60,7 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
+
 
 // Necesario para preflight requests
 app.options("*", cors());
