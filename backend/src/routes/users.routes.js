@@ -12,7 +12,6 @@ const r = Router();
 
 /* =====================================================
    1) PERFIL — OBTENER USUARIO POR ID
-   OJO: user_id es la PK real, lo devolvemos como id
 ===================================================== */
 r.get("/:id", requireAuth, async (req, res) => {
   try {
@@ -20,10 +19,10 @@ r.get("/:id", requireAuth, async (req, res) => {
 
     const [[user]] = await pool.query(
       `SELECT 
-         user_id AS id,
+         id,
          username, nombre, apellidos, email, rol, activo, avatar_url
        FROM users
-       WHERE user_id = ? AND eliminado = 0
+       WHERE id = ? AND eliminado = 0
        LIMIT 1`,
       [id]
     );
@@ -37,13 +36,13 @@ r.get("/:id", requireAuth, async (req, res) => {
 });
 
 /* =====================================================
-   2) LISTAR USUARIOS (ADMIN / SUPERADMIN)
+   2) LISTAR USUARIOS
 ===================================================== */
 r.get("/", requireAuth, requireRole("admin", "superadmin"), async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT 
-         user_id AS id,
+         id,
          username, nombre, apellidos, email, rol, activo, avatar_url
        FROM users
        WHERE eliminado = 0
@@ -72,20 +71,10 @@ r.post(
   log("users"),
   async (req, res) => {
     try {
-      const {
-        username,
-        nombre,
-        apellidos = "",
-        email,
-        rol = "docente",
-        activo = 1,
-        password,
-      } = req.body;
+      const { username, nombre, apellidos = "", email, rol = "docente", activo = 1, password } = req.body;
 
       if (!username || !nombre || !email || !password) {
-        return res.status(400).json({
-          error: "username, nombre, email y password son obligatorios",
-        });
+        return res.status(400).json({ error: "Campos obligatorios faltantes" });
       }
 
       if (rol === "superadmin") {
@@ -93,14 +82,12 @@ r.post(
       }
 
       const [[exists]] = await pool.query(
-        `SELECT user_id FROM users WHERE (username=? OR email=?) AND eliminado=0 LIMIT 1`,
+        `SELECT id FROM users WHERE (username=? OR email=?) AND eliminado=0 LIMIT 1`,
         [username, email]
       );
 
       if (exists) {
-        return res.status(409).json({
-          error: "Ya existe un usuario con ese username o email",
-        });
+        return res.status(409).json({ error: "Usuario o email ya existe" });
       }
 
       const hash = await bcrypt.hash(password, 10);
@@ -109,7 +96,7 @@ r.post(
         `INSERT INTO users 
          (username, nombre, apellidos, email, rol, activo, password_hash)
          VALUES (?,?,?,?,?,?,?)`,
-        [username, nombre, apellidos, email, rol, Number(activo) ? 1 : 0, hash]
+        [username, nombre, apellidos, email, rol, Number(activo), hash]
       );
 
       res.status(201).json({ ok: true });
@@ -121,145 +108,92 @@ r.post(
 );
 
 /* =====================================================
-   4) EDITAR USUARIO (POR user_id)
+   4) EDITAR USUARIO
 ===================================================== */
-r.put(
-  "/:id",
-  requireAuth,
-  requireRole("admin", "superadmin"),
-  log("users"),
-  async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { username, nombre, apellidos = "", email, rol, activo } = req.body;
+r.put("/:id", requireAuth, requireRole("admin", "superadmin"), log("users"), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { username, nombre, apellidos = "", email, rol, activo } = req.body;
 
-      if (rol === "superadmin") {
-        return res.status(403).json({ error: "No se puede asignar rol superadmin" });
-      }
+    const [[target]] = await pool.query(
+      "SELECT id, rol FROM users WHERE id=? AND eliminado=0",
+      [id]
+    );
 
-      const [[target]] = await pool.query(
-        "SELECT user_id, rol FROM users WHERE user_id=? AND eliminado=0",
-        [id]
-      );
+    if (!target) return res.status(404).json({ error: "No encontrado" });
 
-      if (!target) return res.status(404).json({ error: "No encontrado" });
+    const [[dupe]] = await pool.query(
+      `SELECT id FROM users WHERE (username=? OR email=?) AND eliminado=0 AND id<>? LIMIT 1`,
+      [username, email, id]
+    );
 
-      if (target.rol === "superadmin" && req.user.rol !== "superadmin") {
-        return res.status(403).json({ error: "No puedes editar al SUPERADMIN" });
-      }
-
-      const [[dupe]] = await pool.query(
-        `SELECT user_id FROM users 
-         WHERE (username=? OR email=?) AND eliminado=0 AND user_id<>?
-         LIMIT 1`,
-        [username, email, id]
-      );
-
-      if (dupe) {
-        return res.status(409).json({
-          error: "Ya existe otro usuario con ese username o email",
-        });
-      }
-
-      await pool.execute(
-        `UPDATE users
-         SET username=?, nombre=?, apellidos=?, email=?, rol=?, activo=?, updated_at=NOW()
-         WHERE user_id=? AND eliminado=0`,
-        [username, nombre, apellidos, email, rol, Number(activo) ? 1 : 0, id]
-      );
-
-      res.json({ ok: true });
-    } catch (err) {
-      console.error("ERROR PUT /users/:id", err);
-      res.status(500).json({ error: "Error interno" });
+    if (dupe) {
+      return res.status(409).json({ error: "Duplicado" });
     }
+
+    await pool.execute(
+      `UPDATE users
+       SET username=?, nombre=?, apellidos=?, email=?, rol=?, activo=?, updated_at=NOW()
+       WHERE id=?`,
+      [username, nombre, apellidos, email, rol, Number(activo), id]
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("ERROR PUT /users/:id", err);
+    res.status(500).json({ error: "Error interno" });
   }
-);
+});
 
 /* =====================================================
-   5) ACTIVAR / INACTIVAR (POR user_id)
+   5) ACTIVAR / INACTIVAR
 ===================================================== */
-r.patch(
-  "/:id/activo",
-  requireAuth,
-  requireRole("admin", "superadmin"),
-  log("users"),
-  async (req, res) => {
-    try {
-      const { id } = req.params;
+r.patch("/:id/activo", requireAuth, requireRole("admin", "superadmin"), log("users"), async (req, res) => {
+  try {
+    const { id } = req.params;
 
-      const [[row]] = await pool.query(
-        "SELECT user_id, rol, activo FROM users WHERE user_id=? AND eliminado=0",
-        [id]
-      );
+    const [[row]] = await pool.query(
+      "SELECT id, rol, activo FROM users WHERE id=? AND eliminado=0",
+      [id]
+    );
 
-      if (!row) return res.status(404).json({ error: "No encontrado" });
+    if (!row) return res.status(404).json({ error: "No encontrado" });
 
-      if (row.rol === "superadmin" && req.user.rol !== "superadmin") {
-        return res.status(403).json({ error: "No se puede inactivar al SUPERADMIN" });
-      }
+    const nuevo = row.activo ? 0 : 1;
 
-      if (req.user.rol === "admin" && row.rol === "admin") {
-        return res.status(403).json({ error: "Un ADMIN no puede activar/inactivar a otro ADMIN" });
-      }
+    await pool.execute(
+      "UPDATE users SET activo=?, updated_at=NOW() WHERE id=?",
+      [nuevo, id]
+    );
 
-      const nuevo = row.activo ? 0 : 1;
-
-      await pool.execute(
-        "UPDATE users SET activo=?, updated_at=NOW() WHERE user_id=?",
-        [nuevo, id]
-      );
-
-      res.json({ id: Number(id), activo: nuevo });
-    } catch (err) {
-      console.error("ERROR PATCH /users/:id/activo", err);
-      res.status(500).json({ error: "Error interno" });
-    }
+    res.json({ id: Number(id), activo: nuevo });
+  } catch (err) {
+    console.error("ERROR PATCH /users/:id/activo", err);
+    res.status(500).json({ error: "Error interno" });
   }
-);
+});
 
 /* =====================================================
-   6) ELIMINAR (SOFT DELETE) (POR user_id)
+   6) ELIMINAR (SOFT DELETE)
 ===================================================== */
-r.delete(
-  "/:id",
-  requireAuth,
-  requireRole("admin", "superadmin"),
-  log("users"),
-  async (req, res) => {
-    try {
-      const { id } = req.params;
+r.delete("/:id", requireAuth, requireRole("admin", "superadmin"), log("users"), async (req, res) => {
+  try {
+    const { id } = req.params;
 
-      const [[row]] = await pool.query(
-        "SELECT user_id, rol FROM users WHERE user_id=? AND eliminado=0",
-        [id]
-      );
+    await pool.execute(
+      "UPDATE users SET eliminado=1, eliminado_en=NOW(), activo=0 WHERE id=?",
+      [id]
+    );
 
-      if (!row) return res.status(404).json({ error: "No encontrado" });
-
-      if (row.rol === "superadmin") {
-        return res.status(403).json({ error: "No se puede eliminar al SUPERADMIN" });
-      }
-
-      if (req.user.rol === "admin" && row.rol !== "docente") {
-        return res.status(403).json({ error: "Un ADMIN solo puede eliminar DOCENTES" });
-      }
-
-      await pool.execute(
-        "UPDATE users SET eliminado=1, eliminado_en=NOW(), activo=0 WHERE user_id=?",
-        [id]
-      );
-
-      res.json({ ok: true });
-    } catch (err) {
-      console.error("ERROR DELETE /users/:id", err);
-      res.status(500).json({ error: "Error interno" });
-    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("ERROR DELETE /users/:id", err);
+    res.status(500).json({ error: "Error interno" });
   }
-);
+});
 
 /* =====================================================
-   7) SUBIR AVATAR (POR user_id)
+   7) AVATAR
 ===================================================== */
 const avatarDir = path.resolve("uploads/avatars");
 if (!fs.existsSync(avatarDir)) fs.mkdirSync(avatarDir, { recursive: true });
@@ -275,19 +209,17 @@ const upload = multer({ storage });
 
 r.post("/:id/avatar", requireAuth, upload.single("avatar"), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: "No se envió archivo" });
-
     const avatarPath = `/uploads/avatars/${req.file.filename}`;
 
     await pool.execute(
-      "UPDATE users SET avatar_url=?, updated_at=NOW() WHERE user_id=?",
+      "UPDATE users SET avatar_url=?, updated_at=NOW() WHERE id=?",
       [avatarPath, req.params.id]
     );
 
     res.json({ ok: true, avatar_url: avatarPath });
   } catch (err) {
-    console.error("Error subiendo avatar:", err);
-    res.status(500).json({ error: "Error interno al subir avatar" });
+    console.error("Error avatar:", err);
+    res.status(500).json({ error: "Error interno" });
   }
 });
 

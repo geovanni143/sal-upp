@@ -124,22 +124,23 @@ function diaActualNumero() {
 async function ensureQrCodeForHorario(periodo_id, lab_id) {
   const [rows] = await pool.query(
     `
-    SELECT
-      h.periodo_id,
-      p.nombre AS periodo_nombre,
-      DATE_FORMAT(p.fecha_ini,'%Y-%m-%d') AS periodo_ini,
-      DATE_FORMAT(p.fecha_fin,'%Y-%m-%d') AS periodo_fin,
-      h.lab_id,
-      l.nombre AS lab_nombre,
-      COUNT(*) AS bloques_activos,
-      MIN(h.codigo_qr) AS codigo_qr
-    FROM horarios h
-    JOIN periodos p ON p.id = h.periodo_id
-    JOIN labs     l ON l.id = h.lab_id
-    WHERE IFNULL(h.eliminado,0)=0
-      AND h.periodo_id=?
-      AND h.lab_id=?
-    GROUP BY h.periodo_id, h.lab_id
+SELECT
+  h.periodo_id,
+  MIN(p.nombre) AS periodo_nombre,
+  MIN(DATE_FORMAT(p.fecha_ini,'%Y-%m-%d')) AS periodo_ini,
+  MIN(DATE_FORMAT(p.fecha_fin,'%Y-%m-%d')) AS periodo_fin,
+  h.lab_id,
+  MIN(l.nombre) AS lab_nombre,
+  COUNT(*) AS bloques_activos,
+  MIN(h.codigo_qr) AS codigo_qr
+FROM horarios h
+JOIN periodos p ON p.id = h.periodo_id
+JOIN labs     l ON l.id = h.lab_id
+WHERE IFNULL(h.eliminado,0)=0
+  AND h.periodo_id=?
+  AND h.lab_id=?
+GROUP BY h.periodo_id, h.lab_id
+
     `,
     [periodo_id, lab_id]
   );
@@ -222,21 +223,22 @@ r.get("/catalogo", async (req, res) => {
 
     const [rows] = await pool.query(
       `
-      SELECT
-        h.periodo_id,
-        p.nombre AS periodo_nombre,
-        DATE_FORMAT(p.fecha_ini,'%Y-%m-%d') AS periodo_ini,
-        DATE_FORMAT(p.fecha_fin,'%Y-%m-%d') AS periodo_fin,
-        h.lab_id,
-        l.nombre AS lab_nombre,
-        COUNT(*) AS bloques_activos,
-        MIN(IFNULL(h.activo,0)) AS activo_flag
-      FROM horarios h
-      JOIN periodos p ON p.id = h.periodo_id
-      JOIN labs     l ON l.id = h.lab_id
-      ${where}
-      GROUP BY h.periodo_id, h.lab_id
-      ORDER BY p.fecha_ini DESC, l.nombre ASC
+SELECT
+  h.periodo_id,
+  MIN(p.nombre) AS periodo_nombre,
+  MIN(DATE_FORMAT(p.fecha_ini,'%Y-%m-%d')) AS periodo_ini,
+  MIN(DATE_FORMAT(p.fecha_fin,'%Y-%m-%d')) AS periodo_fin,
+  h.lab_id,
+  MIN(l.nombre) AS lab_nombre,
+  COUNT(*) AS bloques_activos,
+  MIN(IFNULL(h.activo,0)) AS activo_flag
+FROM horarios h
+JOIN periodos p ON p.id = h.periodo_id
+JOIN labs     l ON l.id = h.lab_id
+${where}
+GROUP BY h.periodo_id, h.lab_id
+ORDER BY periodo_ini DESC, lab_nombre ASC
+
       `,
       params
     );
@@ -834,21 +836,21 @@ r.get("/lista", async (_req, res) => {
   try {
     const [rows] = await pool.query(
       `
-      SELECT
-        h.periodo_id,
-        p.nombre AS periodo_nombre,
-        DATE_FORMAT(p.fecha_ini,'%Y-%m-%d') AS periodo_ini,
-        DATE_FORMAT(p.fecha_fin,'%Y-%m-%d') AS periodo_fin,
-        h.lab_id,
-        l.nombre AS lab_nombre,
-        COUNT(*) AS bloques_activos,
-        MIN(h.codigo_qr) AS codigo_qr
-      FROM horarios h
-      JOIN periodos p ON p.id = h.periodo_id
-      JOIN labs     l ON l.id = h.lab_id
-      WHERE IFNULL(h.eliminado,0)=0
-      GROUP BY h.periodo_id, h.lab_id
-      ORDER BY p.fecha_ini DESC, l.nombre ASC
+SELECT
+  h.periodo_id,
+  MIN(p.nombre) AS periodo_nombre,
+  MIN(DATE_FORMAT(p.fecha_ini,'%Y-%m-%d')) AS periodo_ini,
+  MIN(DATE_FORMAT(p.fecha_fin,'%Y-%m-%d')) AS periodo_fin,
+  h.lab_id,
+  MIN(l.nombre) AS lab_nombre,
+  COUNT(*) AS bloques_activos,
+  MIN(h.codigo_qr) AS codigo_qr
+FROM horarios h
+JOIN periodos p ON p.id = h.periodo_id
+JOIN labs     l ON l.id = h.lab_id
+WHERE IFNULL(h.eliminado,0)=0
+GROUP BY h.periodo_id, h.lab_id
+ORDER BY periodo_ini DESC, lab_nombre ASC
       `
     );
 
