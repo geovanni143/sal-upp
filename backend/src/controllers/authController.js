@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import { pool } from "../db.js";
+import { pool } from "../services/db.js";
 import { signToken } from "../utils/jwt.js";
 
 const MAX_ATTEMPTS = parseInt(process.env.MAX_ATTEMPTS || "5", 10);

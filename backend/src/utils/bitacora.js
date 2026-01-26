@@ -1,4 +1,4 @@
-import { pool } from "../db123.js";
+import { pool } from "../services/db.js";
 
 export async function logBitacora({
   usuario = "sys",

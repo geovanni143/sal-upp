@@ -1,6 +1,6 @@
 // periodos.js
 import { Router } from 'express';
-import { pool } from '../db.js';
+import { pool } from "../services/db.js";
 import { logAction } from '../middlewares/bitacora.js';
 const r = Router();
 

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { pool } from '../db.js';
+import { pool } from "../services/db.js";
 import { emailUPP } from '../middlewares/validate.js';
 import { logAction } from '../middlewares/bitacora.js';
 

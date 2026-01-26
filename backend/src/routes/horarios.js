@@ -1,6 +1,6 @@
 // horarios.js
 import { Router } from 'express';
-import { pool } from '../db123.js';
+import { pool } from "../services/db.js";
 import { rangoHorario } from '../middlewares/validate.js';
 import { logAction } from '../middlewares/bitacora.js';
 

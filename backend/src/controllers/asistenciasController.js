@@ -1,6 +1,6 @@
 import path from "node:path";
 import dayjs from "dayjs";
-import { pool } from "../db.js";
+import { pool } from "../services/db.js";
 import { logBitacora } from "../utils/bitacora.js";
 
 function hoyYdiaMX() {

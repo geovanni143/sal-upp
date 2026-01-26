@@ -1,4 +1,4 @@
-import { pool } from '../db/mysql.js';
+import { pool } from "../services/db.js";
 
 const logAction = (entidad) => (req, res, next) => {
   res.on('finish', async () => {

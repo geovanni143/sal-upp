@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { pool } from '../db/mysql.js';
+import { pool } from "../services/db.js";
 import dayjs from 'dayjs';
 
 const r = Router();

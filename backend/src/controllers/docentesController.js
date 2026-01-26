@@ -1,4 +1,4 @@
-import { pool } from "../db123.js";
+import { pool } from "../services/db.js";
 import { esEmailUPP } from "../utils/validaciones.js";
 import { logBitacora } from "../utils/bitacora.js";
 
