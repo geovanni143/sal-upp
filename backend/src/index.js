@@ -37,18 +37,33 @@ const uploadsPath = path.join(__dirname, "..", "uploads");
 const app = express();
 
 // ===============================
-// CORS (LOCAL + RENDER)
+// CORS (LOCAL + RENDER) ✅
 // ===============================
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://sal-upp-frontend.onrender.com",
+];
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://sal-upp-frontend.onrender.com",
-    ],
+    origin: (origin, callback) => {
+      // Permitir requests sin origin (Postman, curl, healthchecks)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("CORS no permitido: " + origin));
+    },
+    credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    credentials: false,
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
+
+// Necesario para preflight requests
+app.options("*", cors());
 
 // ===============================
 // BODY
@@ -71,7 +86,7 @@ app.get("/api/health", (_req, res) => {
 // RUTAS API
 // ===============================
 
-// Auth (login, logout, etc.)
+// Auth
 app.use("/api", authRoutes);
 
 // Recursos
