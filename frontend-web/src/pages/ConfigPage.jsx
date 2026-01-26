@@ -22,9 +22,11 @@ export default function ConfigPage() {
             marginTop: 14,
           }}
         >
+          {/*
           <button className="big-action" onClick={() => nav("/admin/parametros")}>
             Parámetros del Sistema
           </button>
+          */}
 
           <button className="big-action" onClick={() => nav("/admin/generar-qr")}>
             Generar QR/Código

@@ -61,7 +61,7 @@ export default function LoginAdmin() {
               <input type="checkbox" checked={remember} onChange={e=>setR(e.target.checked)} />
               Recuérdame
             </label>
-            <Link className="link" to="/recuperar">¿Olvidaste tu contraseña?</Link>
+            {/*<Link className="link" to="/recuperar">¿Olvidaste tu contraseña?</Link>*/}
           </div>
 
           <button className="btn-primary" disabled={loading}>{loading ? "Entrando..." : "Entrar"}</button>

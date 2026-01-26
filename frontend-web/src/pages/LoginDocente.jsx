@@ -102,9 +102,9 @@ export default function LoginDocente() {
               />
               Recuérdame
             </label>
-            <Link className="link" to="/recuperar">
+            {/*<Link className="link" to="/recuperar">
               ¿Olvidaste tu contraseña?
-            </Link>
+            </Link>*/}
           </div>
 
           <button className="btn-primary" disabled={loading}>
