@@ -2,6 +2,9 @@ import { Router } from "express";
 import { pool } from "../services/db.js";
 import PDFDocument from "pdfkit";
 import { requireAuth, requireRole } from "../middlewares/auth.js";
+import path from "path";
+import fs from "fs";
+
 
 const router = Router();
 
@@ -240,20 +243,12 @@ router.get(
   requireAuth,
   requireRole("admin", "superadmin"),
   async (req, res) => {
-    const {
-      periodoId,
-      labId,
-      docenteId,
-      estado,
-      del,
-      al,
-    } = req.query;
+    const { periodoId, labId, docenteId, estado, del, al } = req.query;
 
     if (!periodoId) {
       return res.status(400).json({ error: "periodoId requerido" });
     }
 
-    // Marca NO_ASISTIO igual que historial normal
     await marcarNoAsistioHoy(periodoId);
 
     let conn;
@@ -270,53 +265,47 @@ router.get(
           a.fecha,
           h.hora_ini,
           h.hora_fin,
-          a.estado
+          a.estado,
+          a.foto_url,
+          a.firma_url
         FROM asistencias a
         JOIN horarios h ON h.id = a.horario_id
         JOIN labs l ON l.id = h.lab_id
-        JOIN periodos p ON p.id = h.periodo_id
         LEFT JOIN users u ON u.id = a.docente_id
         WHERE a.periodo_id = ?
       `;
 
       const params = [periodoId];
 
-      if (labId && labId !== "") {
-        sql += ` AND h.lab_id = ? `;
+      if (labId) {
+        sql += " AND h.lab_id = ?";
         params.push(labId);
       }
-
-      if (docenteId && docenteId !== "") {
-        sql += ` AND a.docente_id = ? `;
+      if (docenteId) {
+        sql += " AND a.docente_id = ?";
         params.push(docenteId);
       }
-
-      if (estado && estado !== "") {
-        sql += ` AND a.estado = ? `;
+      if (estado) {
+        sql += " AND a.estado = ?";
         params.push(estado);
       }
-
-      if (del && del !== "") {
-        sql += ` AND a.fecha >= ? `;
+      if (del) {
+        sql += " AND a.fecha >= ?";
         params.push(del);
       }
-
-      if (al && al !== "") {
-        sql += ` AND a.fecha <= ? `;
+      if (al) {
+        sql += " AND a.fecha <= ?";
         params.push(al);
       }
 
-      sql += ` ORDER BY a.fecha DESC, h.hora_ini `;
+      sql += " ORDER BY a.fecha DESC, h.hora_ini";
 
       const [rows] = await conn.query(sql, params);
 
       /* =========================
          PDF
-         ========================= */
-      const doc = new PDFDocument({
-        size: "A4",
-        margin: 40,
-      });
+      ========================= */
+      const doc = new PDFDocument({ size: "A4", margin: 40 });
 
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader(
@@ -326,26 +315,90 @@ router.get(
 
       doc.pipe(res);
 
-      doc.fontSize(16).text("Historial General de Asistencias", {
+      /* ===== ENCABEZADO ===== */
+      doc.fontSize(16).text("SAL-UPP", { align: "center" });
+      doc.moveDown(0.3);
+      doc.fontSize(14).text("Historial General de Asistencias", {
+        align: "center",
+      });
+
+      doc.moveDown(0.5);
+      doc.fontSize(9).text(
+        `Periodo ID: ${periodoId} | Desde: ${del || "—"} | Hasta: ${al || "—"}`,
+        { align: "center" }
+      );
+
+      doc.moveDown(0.3);
+      doc.text(`Generado: ${new Date().toLocaleString()}`, {
         align: "center",
       });
 
       doc.moveDown(1);
 
-      doc.fontSize(10);
+      /* ===== TABLA ===== */
+      const startX = 40;
+      let y = doc.y;
 
-      rows.forEach((r) => {
-        doc
-          .text(`Docente: ${r.docente}`)
-          .text(`Laboratorio: ${r.lab}`)
-          .text(
-            `Fecha: ${r.fecha}   Horario: ${r.hora_ini || ""} - ${
-              r.hora_fin || ""
-            }`
-          )
-          .text(`Estado: ${r.estado}`)
-          .moveDown(0.8);
-      });
+      const col = {
+        docente: startX,
+        lab: startX + 120,
+        fecha: startX + 210,
+        horario: startX + 260,
+        estado: startX + 330,
+        foto: startX + 400,
+        firma: startX + 450,
+      };
+
+      doc.font("Helvetica-Bold").fontSize(9);
+      doc.text("Docente", col.docente, y);
+      doc.text("Lab", col.lab, y);
+      doc.text("Fecha", col.fecha, y);
+      doc.text("Horario", col.horario, y);
+      doc.text("Estado", col.estado, y);
+      doc.text("Foto", col.foto, y);
+      doc.text("Firma", col.firma, y);
+
+      y += 15;
+      doc.moveTo(startX, y).lineTo(550, y).stroke();
+      y += 5;
+
+      doc.font("Helvetica").fontSize(8);
+
+      for (const r of rows) {
+        if (y > 750) {
+          doc.addPage();
+          y = 50;
+        }
+
+        doc.text(r.docente || "—", col.docente, y, { width: 110 });
+        doc.text(r.lab || "—", col.lab, y);
+        doc.text(r.fecha || "—", col.fecha, y);
+        doc.text(
+          r.hora_ini && r.hora_fin
+            ? `${r.hora_ini.slice(0, 5)}-${r.hora_fin.slice(0, 5)}`
+            : "—",
+          col.horario,
+          y
+        );
+        doc.text(r.estado || "—", col.estado, y);
+
+        const fotoPath = r.foto_url
+          ? path.join(process.cwd(), r.foto_url)
+          : null;
+        const firmaPath = r.firma_url
+          ? path.join(process.cwd(), r.firma_url)
+          : null;
+
+        if (fotoPath && fs.existsSync(fotoPath)) {
+          doc.image(fotoPath, col.foto, y, { width: 30, height: 30 });
+        }
+
+        if (firmaPath && fs.existsSync(firmaPath)) {
+          doc.image(firmaPath, col.firma, y, { width: 30, height: 30 });
+        }
+
+        y += 35;
+      }
 
       doc.end();
     } catch (err) {
@@ -356,6 +409,7 @@ router.get(
     }
   }
 );
+
 
 
 export default router;
