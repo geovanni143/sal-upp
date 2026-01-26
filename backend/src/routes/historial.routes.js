@@ -238,7 +238,7 @@ router.get("/", async (req, res) => {
 router.get(
   "/pdf",
   requireAuth,
-  requireRole("admin"),
+  requireRole("admin", "superadmin"),
   async (req, res) => {
     const {
       periodoId,
