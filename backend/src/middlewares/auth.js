@@ -53,12 +53,16 @@ export function requireRole(...roles) {
     allowed = allowed[0];
   }
 
-  // Normaliza strings
-  allowed = (allowed || []).filter(Boolean);
+  // Normaliza roles permitidos (lowercase)
+  allowed = (allowed || [])
+    .filter(Boolean)
+    .map((r) => String(r).toLowerCase());
 
   return (req, res, next) => {
     const user = req.user || {};
-    const role = user.rol || user.role;
+
+    // 🔑 Normaliza el rol del usuario
+    const role = String(user.rol || user.role || "").toLowerCase();
 
     if (!role) {
       return res.status(403).json({ error: "Prohibido: rol no detectado" });
