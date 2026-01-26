@@ -37,7 +37,7 @@ const uploadsPath = path.join(__dirname, "..", "uploads");
 const app = express();
 
 // ===============================
-// CORS (LOCAL + RENDER) ✅
+// CORS (LOCAL + RENDER) ✅ NODE 22 SAFE
 // ===============================
 const allowedOrigins = [
   "http://localhost:5173",
@@ -47,6 +47,7 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
+      // Permite requests sin origin (Postman, curl, etc.)
       if (!origin) return callback(null, true);
 
       if (allowedOrigins.includes(origin)) {
@@ -60,10 +61,6 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
-
-
-// Necesario para preflight requests
-app.options("*", cors());
 
 // ===============================
 // BODY
