@@ -228,9 +228,19 @@ export default function HistorialPage() {
           <button className="btn-back" onClick={handleMostrar} disabled={loading}>
             {loading ? "Cargando…" : "Mostrar"}
           </button>
-          <button className="btn-save" onClick={() => alert("Generar PDF (pendiente)")}>
-            Generar PDF
-          </button>
+<button
+  className="btn-save"
+  onClick={() => {
+    const qs = new URLSearchParams(f).toString();
+    window.open(
+      `${import.meta.env.VITE_API_URL}/historial/pdf?${qs}`,
+      "_blank"
+    );
+  }}
+>
+  Generar PDF
+</button>
+
         </div>
 
         {/* FILTROS */}

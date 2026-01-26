@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { pool } from "../services/db.js";
+import PDFDocument from "pdfkit";
+import { requireAuth, requireRole } from "../middlewares/auth.js";
 
 const router = Router();
 
@@ -227,5 +229,133 @@ router.get("/", async (req, res) => {
     if (conn) conn.release();
   }
 });
+
+/* =========================================================
+   GET /api/historial/pdf
+   - PDF general (ADMIN)
+   - Usa los mismos filtros que /api/historial
+   ========================================================= */
+router.get(
+  "/pdf",
+  requireAuth,
+  requireRole("admin"),
+  async (req, res) => {
+    const {
+      periodoId,
+      labId,
+      docenteId,
+      estado,
+      del,
+      al,
+    } = req.query;
+
+    if (!periodoId) {
+      return res.status(400).json({ error: "periodoId requerido" });
+    }
+
+    // Marca NO_ASISTIO igual que historial normal
+    await marcarNoAsistioHoy(periodoId);
+
+    let conn;
+    try {
+      conn = await pool.getConnection();
+
+      let sql = `
+        SELECT
+          l.nombre AS lab,
+          COALESCE(
+            CONCAT(u.nombre, ' ', u.apellidos),
+            a.invitado_nombre
+          ) AS docente,
+          a.fecha,
+          h.hora_ini,
+          h.hora_fin,
+          a.estado
+        FROM asistencias a
+        JOIN horarios h ON h.id = a.horario_id
+        JOIN labs l ON l.id = h.lab_id
+        JOIN periodos p ON p.id = h.periodo_id
+        LEFT JOIN users u ON u.id = a.docente_id
+        WHERE a.periodo_id = ?
+      `;
+
+      const params = [periodoId];
+
+      if (labId && labId !== "") {
+        sql += ` AND h.lab_id = ? `;
+        params.push(labId);
+      }
+
+      if (docenteId && docenteId !== "") {
+        sql += ` AND a.docente_id = ? `;
+        params.push(docenteId);
+      }
+
+      if (estado && estado !== "") {
+        sql += ` AND a.estado = ? `;
+        params.push(estado);
+      }
+
+      if (del && del !== "") {
+        sql += ` AND a.fecha >= ? `;
+        params.push(del);
+      }
+
+      if (al && al !== "") {
+        sql += ` AND a.fecha <= ? `;
+        params.push(al);
+      }
+
+      sql += ` ORDER BY a.fecha DESC, h.hora_ini `;
+
+      const [rows] = await conn.query(sql, params);
+
+      /* =========================
+         PDF
+         ========================= */
+      const doc = new PDFDocument({
+        size: "A4",
+        margin: 40,
+      });
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        "attachment; filename=historial_general.pdf"
+      );
+
+      doc.pipe(res);
+
+      doc.fontSize(16).text("Historial General de Asistencias", {
+        align: "center",
+      });
+
+      doc.moveDown(1);
+
+      doc.fontSize(10);
+
+      rows.forEach((r) => {
+        doc
+          .text(`Docente: ${r.docente}`)
+          .text(`Laboratorio: ${r.lab}`)
+          .text(
+            `Fecha: ${r.fecha}   Horario: ${r.hora_ini || ""} - ${
+              r.hora_fin || ""
+            }`
+          )
+          .text(`Estado: ${r.estado}`)
+          .moveDown(0.8);
+      });
+
+      doc.end();
+    } catch (err) {
+      console.error("Error PDF historial admin:", err);
+      res.status(500).json({ error: "Error al generar PDF" });
+    } finally {
+      if (conn) conn.release();
+    }
+  }
+);
+
 
 export default router;
