@@ -80,7 +80,7 @@ export default function QRGenerator() {
   const API_URL = import.meta.env.VITE_API_URL;
 
 const descargarPDF = () => {
-  const url = `${API_URL}/api/horarios/qr-pdf?periodo_id=${qrInfo.periodo_id}&lab_id=${qrInfo.lab_id}`;
+  const url = `${API_URL}/horarios/qr-pdf?periodo_id=${qrInfo.periodo_id}&lab_id=${qrInfo.lab_id}`;
   window.open(url, "_blank");
 };
 
