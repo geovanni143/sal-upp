@@ -11,13 +11,17 @@ dayjs.extend(timezone);
 
 function hoyYdiaMX() {
   const now = dayjs().tz("America/Mexico_City");
-  const map = ['D','L','M','X','J','V','S']; // domingo -> D
+
+  const map = ['do', 'lu', 'ma', 'mi', 'ju', 'vi', 'sa']; 
+  // 0=domingo → do
+
   return {
     fecha: now.format("YYYY-MM-DD"),
     hora: now.format("HH:mm:ss"),
     dia: map[now.day()],
   };
 }
+
 
 export async function registrarAsistencia(req,res){
   // Campos del body/form-data:
