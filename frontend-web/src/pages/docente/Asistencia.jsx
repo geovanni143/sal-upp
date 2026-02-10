@@ -282,12 +282,22 @@ export default function Asistencia() {
           <canvas ref={overlayRef} className="camera-overlay" />
 
           <div className="row gap mt">
-            <button onClick={() => setScanning((p) => !p)} disabled={loading}>
-              {scanning ? "Escaneando..." : "Escanear QR"}
-            </button>
-            <button onClick={tomarFoto} disabled={loading}>
-              Tomar Foto
-            </button>
+<button
+  className="btn-primary small"
+  onClick={() => setScanning((p) => !p)}
+  disabled={loading}
+>
+  {scanning ? "Escaneando..." : "Escanear QR"}
+</button>
+
+<button
+  className="btn-secondary-ghost small"
+  onClick={tomarFoto}
+  disabled={loading}
+>
+  Tomar Foto
+</button>
+
           </div>
 
           {snap && <img src={snap} alt="preview" width={120} />}
@@ -307,9 +317,15 @@ export default function Asistencia() {
             onPointerLeave={terminarFirma}
             style={{ touchAction: "none" }}
           />
-          <button onClick={limpiarFirma} disabled={loading}>
-            Limpiar Firma
-          </button>
+<button
+  type="button"
+  className="btn-secondary-ghost small"
+  onClick={limpiarFirma}
+  disabled={loading}
+>
+  Limpiar Firma
+</button>
+
         </div>
 
         <input
@@ -318,9 +334,14 @@ export default function Asistencia() {
           onChange={(e) => setForm({ ...form, codigo: e.target.value })}
         />
 
-        <button onClick={enviar} disabled={loading}>
-          {loading ? "Registrando..." : "Enviar Registro"}
-        </button>
+ <button
+  className="btn-primary"
+  onClick={enviar}
+  disabled={loading}
+>
+  {loading ? "Registrando..." : "Enviar Registro"}
+</button>
+
       </div>
     </div>
   );
