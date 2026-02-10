@@ -2,11 +2,21 @@ import path from "node:path";
 import dayjs from "dayjs";
 import { pool } from "../services/db.js";
 import { logBitacora } from "../utils/bitacora.js";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc.js";
+import timezone from "dayjs/plugin/timezone.js";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 function hoyYdiaMX() {
-  const now = dayjs();
-  const map = ['D','L','M','X','J','V','S']; // domingo->D
-  return { fecha: now.format("YYYY-MM-DD"), hora: now.format("HH:mm:ss"), dia: map[now.day()] };
+  const now = dayjs().tz("America/Mexico_City");
+  const map = ['D','L','M','X','J','V','S']; // domingo -> D
+  return {
+    fecha: now.format("YYYY-MM-DD"),
+    hora: now.format("HH:mm:ss"),
+    dia: map[now.day()],
+  };
 }
 
 export async function registrarAsistencia(req,res){
@@ -38,7 +48,7 @@ export async function registrarAsistencia(req,res){
   const h = hor?.[0];
 
   if(!h){
-    // fuera de horario → derivar a HU-08 (futuro). Por ahora, mensaje claro.
+    // fuera de horario → derivar a HU-08 (futuro). Por , mensaje claro.
     return res.status(409).json({ok:false,msg:"Registro fuera de horario o en laboratorio no asignado"});
   }
 
