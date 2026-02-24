@@ -8,6 +8,13 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
+const nowMX = () => {
+  const now = new Date();
+  const offsetMX = -6; // México UTC-6
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+  return new Date(utc + 3600000 * offsetMX);
+};
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -1037,7 +1044,7 @@ r.post("/qr/validar-escaneo", async (req, res) => {
         .json({ ok: false, msg: "invalid_code", reason: "no_rows" });
     }
 
-    const now = new Date();
+const now = nowMX();
     const currentHHMM = now.toTimeString().slice(0, 5);
     const currentDay = diaActualNumero(); // 1..7
 
@@ -1143,7 +1150,7 @@ r.post("/qr/registrar", async (req, res) => {
       return res.status(404).json({ ok: false, msg: "invalid_code" });
     }
 
-    const now = new Date();
+const now = nowMX();
     const todayStr = now.toISOString().slice(0, 10);
     const currentHHMM = now.toTimeString().slice(0, 5);
     const currentDay = diaActualNumero(); // 1..7
@@ -1308,7 +1315,7 @@ r.post(
         return res.status(404).json({ ok: false, msg: "invalid_code" });
       }
 
-      const now = new Date();
+const now = nowMX();
       const todayStr = now.toISOString().slice(0, 10);
       const currentHHMM = now.toTimeString().slice(0, 5);
       const currentDay = diaActualNumero(); // 1..7
