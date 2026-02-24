@@ -123,6 +123,18 @@ r.post("/registrar", async (req, res) => {
     const iniMin = toMin(horaIni);
     const finMin = toMin(horaFin);
 
+    console.log("===== DEBUG PRODUCCION =====");
+console.log("Fecha hoy:", hoyStr);
+console.log("Fecha clase:", fechaClaseStr);
+console.log("Hora servidor:", now.getHours() + ":" + now.getMinutes());
+console.log("horaIni:", horaIni);
+console.log("horaFin:", horaFin);
+console.log("nowMin:", nowMin);
+console.log("iniMin:", iniMin);
+console.log("finMin:", finMin);
+console.log("============================");
+
+
     // 2) Validar que hoy sea el día de la clase
     if (hoyStr < fechaClaseStr) {
       return res.status(400).json({
