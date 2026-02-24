@@ -238,11 +238,12 @@ export default function Asistencia() {
 
       const fd = new FormData();
       fd.append("docente_id", form.docente_id);
-      fd.append("codigo", form.codigo);
+      fd.append("horario_id", form.horario_id);
       fd.append("foto", toFile(snap, "foto.jpg"));
       fd.append("firma", toFile(firmaDataUrl, "firma.png"));
 
-      const resp = await fetch(`${API}/horarios/qr/registrar-evidencia`, {
+      const resp = await fetch(`${API}/asistencias/registrar`, {
+
         method: "POST",
         body: fd,
       });
