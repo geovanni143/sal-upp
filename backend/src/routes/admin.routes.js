@@ -253,6 +253,12 @@ r.get("/asistencias-dia", async (req, res) => {
     const now = nowMX();
     const nowMin = now.getHours() * 60 + now.getMinutes();
 
+    const hoyStr = now.toISOString().slice(0, 10);
+
+console.log("==== DEBUG ADMIN ====");
+console.log("NOW MX:", now);
+console.log("HOY STR:", hoyStr);
+
     // -------------------------------
     // 1) Armar filtro de día (SQL)
     // -------------------------------
@@ -321,6 +327,9 @@ r.get("/asistencias-dia", async (req, res) => {
     const semana_inicio_str = toDateStr(monday);
     const semana_fin_str = toDateStr(addDays(monday, 6)); // domingo
 
+    console.log("LUNES CALCULADO:", semana_inicio_str);
+console.log("DOMINGO CALCULADO:", semana_fin_str);
+
     // Para cada horario, determinamos:
     //  - dia_num      (1..5)
     //  - fecha_clase  (lunes+offset)
@@ -370,6 +379,7 @@ console.log("Horarios encontrados:", horarioIds);
       `,
       [semana_inicio_str, semana_fin_str, ...horarioIds]
     );
+console.log("ASISTENCIAS RAW:", asisRows);
 
     // Mapear asistencias por (horario_id, fecha) → tomamos la MÁS reciente
     const asistenciasMap = new Map(); // key: `${horario_id}_${fecha}`
@@ -476,15 +486,6 @@ console.log("Horarios encontrados:", horarioIds);
 
       return { estado_codigo, estado_label, texto };
     }
-console.log("==== DEBUG ADMIN ====");
-console.log("HOY:", hoyStr);
-console.log("SEMANA INICIO:", semana_inicio_str);
-console.log("SEMANA FIN:", semana_fin_str);
-console.log("CLASES:", clases.map(c => ({
-  id: c.id,
-  fecha_clase: c.fecha_clase
-})));
-console.log("ASISTENCIAS:", asisRows);
 
     // -------------------------------
     // 6) Unir TODO: clase + asistencia
