@@ -203,6 +203,8 @@ export default function Historial() {
 
         <div className="class-list">
           {items.map((it) => {
+                        console.log("ESTADO QUE LLEGA:", it.estado);
+  
             const h = it.horario || {};
             const titulo = `${h.lab_nombre || "Laboratorio"}${h.materia ? ` ${h.materia}` : ""}`;
             const linea2 = `${diaLabel(h.dia)} ${h.hora_ini || ""} - ${h.hora_fin || ""}`;
