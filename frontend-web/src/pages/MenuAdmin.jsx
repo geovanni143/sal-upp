@@ -156,33 +156,53 @@ function buildPeriodoBanner(periodosRaw) {
 
 function normalizeRegistro(it) {
   const raw = norm(it.registro_codigo).toLowerCase();
-
-  const codigo =
-    raw === "registrada" || raw === "registrado" || raw === "ok"
-      ? "registrada"
-      : raw === "sin_registro" ||
-        raw === "sin registrar" ||
-        raw === "pendiente" ||
-        raw === "no"
-      ? "sin_registro"
-      : "";
-
   const detalle = norm(it.registro_detalle);
 
-  if (!codigo && typeof it.registrada === "boolean") {
-    return {
-      codigo: it.registrada ? "registrada" : "sin_registro",
-      label: it.registrada ? "Registrada" : "Sin registrar",
-      detalle: detalle || "",
-    };
+  let codigo;
+
+  switch (raw) {
+    case "registrado":
+    case "registrada":
+    case "ok":
+      codigo = "registrada";
+      break;
+
+    case "tardio":
+      codigo = "tardio";
+      break;
+
+    case "registro_invitado":
+      codigo = "registro_invitado";
+      break;
+
+    case "no_asistio":
+      codigo = "no_asistio";
+      break;
+
+    case "sin_registrar":
+    case "sin_registro":
+    case "pendiente":
+    case "no":
+    default:
+      codigo = "sin_registro";
+      break;
   }
 
   const label =
     norm(it.registro) ||
-    (codigo === "registrada" ? "Registrada" : "Sin registrar");
+    (codigo === "registrada"
+      ? "Registrada"
+      : codigo === "tardio"
+      ? "Registro tardío"
+      : codigo === "registro_invitado"
+      ? "Registro invitado"
+      : codigo === "no_asistio"
+      ? "No asistió"
+      : "Sin registrar");
 
-  return { codigo: codigo || "sin_registro", label, detalle };
+  return { codigo, label, detalle };
 }
+
 
 function normalizeEstado(it) {
   const raw = norm(it.estado_codigo).toLowerCase();
