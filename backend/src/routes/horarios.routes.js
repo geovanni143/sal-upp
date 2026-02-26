@@ -1151,7 +1151,8 @@ r.post("/qr/registrar", async (req, res) => {
     }
 
 const now = nowMX();
-    const todayStr = now.toISOString().slice(0, 10);
+    const todayStr = nowMX().toISOString().slice(0, 10);
+
     const currentHHMM = now.toTimeString().slice(0, 5);
     const currentDay = diaActualNumero(); // 1..7
 
@@ -1316,7 +1317,8 @@ r.post(
       }
 
 const now = nowMX();
-      const todayStr = now.toISOString().slice(0, 10);
+      const todayStr = nowMX().toISOString().slice(0, 10);
+
       const currentHHMM = now.toTimeString().slice(0, 5);
       const currentDay = diaActualNumero(); // 1..7
 
