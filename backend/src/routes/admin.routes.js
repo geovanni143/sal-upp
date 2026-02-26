@@ -347,6 +347,11 @@ r.get("/asistencias-dia", async (req, res) => {
     // 4) Leer ASISTENCIAS de la semana
     // -------------------------------
     const horarioIds = clases.map((c) => c.id);
+    if (!horarioIds.length) {
+  return res.json([]);
+}
+console.log("Horarios encontrados:", horarioIds);
+
     const [asisRows] = await pool.query(
       `
       SELECT
