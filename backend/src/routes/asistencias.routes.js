@@ -78,6 +78,8 @@ function addDays(baseDate, days) {
 /* Ruta de registro */
 
 r.post("/registrar", async (req, res) => {
+  console.log("🔥 VERSION NUEVA DE REGISTRO ACTIVA");
+
   try {
     const { horario_id, docente_id, invitado_nombre } = req.body || {};
 
