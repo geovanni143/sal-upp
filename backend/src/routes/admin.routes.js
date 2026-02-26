@@ -22,6 +22,13 @@ import { pool } from "../services/db.js";
 
 const r = Router();
 
+function nowMX() {
+  const now = nowMX();
+  const offsetMX = -6;
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+  return new Date(utc + 3600000 * offsetMX);
+}
+
 /* =======================================================
    Helpers de tiempo (horas y fechas)
    ======================================================= */
@@ -65,7 +72,7 @@ function toDateStr(d) {
 // Si hoy es domingo, toma el lunes ANTERIOR (porque
 // el domingo lo usamos como "reinicio de próxima semana").
 function getMondayOfCurrentWeek() {
-  const today = new Date();
+  const today = nowMX();
   const day = today.getDay(); // 0=Dom,1=Lun,...6=Sab
   const d = new Date(today); // copia
 
@@ -100,7 +107,7 @@ const DIA_LABEL = {
 
 // Para "Hoy (Jueves)" en el combo
 function getTodayDiaNumeroLabel() {
-  const dow = new Date().getDay(); // 0=dom,1=lun,..6=sab
+  const dow = nowMX().getDay(); // 0=dom,1=lun,..6=sab
   if (dow >= 1 && dow <= 5) return dow;
   return 1; // si es fin de semana, mostramos "Hoy (Lunes)"
 }
@@ -110,7 +117,7 @@ function getTodayDiaNumeroLabel() {
 //  1..5 = lunes..viernes normales
 //  6 = sábado → lo tratamos como >=5
 function getTodayDiaNumeroLogic() {
-  const dow = new Date().getDay();
+  const dow = nowMX().getDay();
   if (dow === 0) return 0; // domingo
   if (dow >= 1 && dow <= 5) return dow;
   if (dow === 6) return 5; // sábado -> después de viernes
@@ -149,7 +156,7 @@ function getTodayDiaNumeroLogic() {
  *  }
  */
 function calcularEstadoRegistro(clase, asistencia) {
-  const now = new Date();
+  const now = nowMX();
   const hoyStr = toDateStr(now);
   const fechaClase = clase.fecha_clase; // 'YYYY-MM-DD'
 
@@ -242,7 +249,7 @@ r.get("/asistencias-dia", async (req, res) => {
 
     const todayLogic = getTodayDiaNumeroLogic(); // 0..5
     const todayLabel = getTodayDiaNumeroLabel(); // 1..5
-    const now = new Date();
+    const now = nowMX();
     const nowMin = now.getHours() * 60 + now.getMinutes();
 
     // -------------------------------
