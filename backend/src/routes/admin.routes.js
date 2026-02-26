@@ -476,6 +476,15 @@ console.log("Horarios encontrados:", horarioIds);
 
       return { estado_codigo, estado_label, texto };
     }
+console.log("==== DEBUG ADMIN ====");
+console.log("HOY:", hoyStr);
+console.log("SEMANA INICIO:", semana_inicio_str);
+console.log("SEMANA FIN:", semana_fin_str);
+console.log("CLASES:", clases.map(c => ({
+  id: c.id,
+  fecha_clase: c.fecha_clase
+})));
+console.log("ASISTENCIAS:", asisRows);
 
     // -------------------------------
     // 6) Unir TODO: clase + asistencia
