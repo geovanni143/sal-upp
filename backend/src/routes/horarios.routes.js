@@ -1398,25 +1398,37 @@ const now = nowMX();
       const foto_url = `/uploads/asistencias/${foto.filename}`;
       const firma_url = `/uploads/asistencias/${firma.filename}`;
 
-      const [ins] = await pool.query(
-        `
-        INSERT INTO asistencias
-          (horario_id, docente_id, invitado_nombre, periodo_id, fecha, hora_registro, estado, foto_url, firma_url)
-        VALUES
-          (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-        [
-          horario_id,
-          Number(docente_id),
-          null,
-          meta.periodo_id,
-          todayStr,
-          currentHHMM + ":00",
-          "pendiente",
-          foto_url,
-          firma_url,
-        ]
-      );
+// === CALCULAR ESTADO REAL ===
+const iniMin = toMin(chosen.hora_ini);
+const finMin = toMin(chosen.hora_fin);
+const nowMin = toMin(currentHHMM);
+
+let estadoFinal = "registrado";
+
+if (nowMin > finMin) {
+  estadoFinal = "tardio";
+}
+
+// === INSERT ===
+const [ins] = await pool.query(
+  `
+  INSERT INTO asistencias
+    (horario_id, docente_id, invitado_nombre, periodo_id, fecha, hora_registro, estado, foto_url, firma_url)
+  VALUES
+    (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `,
+  [
+    horario_id,
+    Number(docente_id),
+    null,
+    meta.periodo_id,
+    todayStr,
+    currentHHMM + ":00",
+    estadoFinal,
+    foto_url,
+    firma_url,
+  ]
+);
 
       return res.json({
         ok: true,
@@ -1425,7 +1437,7 @@ const now = nowMX();
         meta,
         fecha: todayStr,
         hora: currentHHMM,
-        estado: "pendiente",
+        estado: estadoFinal,
         foto_url,
         firma_url,
         testMode,
