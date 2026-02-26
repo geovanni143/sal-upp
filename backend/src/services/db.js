@@ -16,14 +16,23 @@ console.log("=====================================");
 export const pool = mysql.createPool({
   uri: DATABASE_URL,
 
-  // 🔐 OBLIGATORIO para Railway
+  // 🔐 OBLIGATORIO para Railway / Render
   ssl: {
     rejectUnauthorized: false,
   },
 
-  // 🔧 Evita timeouts
   connectTimeout: 30000,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
 });
+
+// 🔥🔥🔥 FORZAR ZONA HORARIA MÉXICO
+(async () => {
+  try {
+    await pool.query("SET time_zone = '-06:00'");
+    console.log("✅ Zona horaria MySQL configurada a -06:00 (México)");
+  } catch (err) {
+    console.error("❌ Error configurando zona horaria:", err);
+  }
+})();
