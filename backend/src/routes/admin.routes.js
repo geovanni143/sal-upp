@@ -151,15 +151,13 @@ function getTodayDiaNumeroLogic() {
 function calcularEstadoRegistro(clase, asistencia) {
   const now = new Date();
   const hoyStr = toDateStr(now);
-
   const fechaClase = clase.fecha_clase; // 'YYYY-MM-DD'
-  const inicioMin = toMin(clase.hora_ini);
-  const finMin = toMin(clase.hora_fin);
 
-  // === 1) Si NO hay asistencia: decidir entre sin_registrar / no_asistio ===
+  // ======================================================
+  // 1️⃣ NO existe asistencia
+  // ======================================================
   if (!asistencia) {
     if (hoyStr < fechaClase) {
-      // Clase aún no ocurre (día futuro de esta semana)
       return {
         codigo: "sin_registrar",
         label: "Sin registrar",
@@ -168,7 +166,6 @@ function calcularEstadoRegistro(clase, asistencia) {
     }
 
     if (hoyStr === fechaClase) {
-      // Hoy es el día de la clase, todo el día puede registrar
       return {
         codigo: "sin_registrar",
         label: "Sin registrar",
@@ -176,7 +173,6 @@ function calcularEstadoRegistro(clase, asistencia) {
       };
     }
 
-    // hoyStr > fechaClase → ya pasó el día completo y nunca se registró
     return {
       codigo: "no_asistio",
       label: "No asistió",
@@ -184,53 +180,49 @@ function calcularEstadoRegistro(clase, asistencia) {
     };
   }
 
-  // === 2) Hay una fila de asistencia ===
+  // ======================================================
+  // 2️⃣ SÍ existe asistencia → CONFIAMOS EN LA BD
+  // ======================================================
 
-  // Si es un registro de invitado:
-  if (asistencia.estado === "registro_invitado" ||
-      (asistencia.invitado_nombre && !asistencia.docente_id)) {
-    return {
-      codigo: "registro_invitado",
-      label: "Registro invitado",
-      mensaje: `Registrado por invitado: ${asistencia.invitado_nombre || "Invitado"}`,
-    };
+  switch (asistencia.estado) {
+    case "registrado":
+      return {
+        codigo: "registrado",
+        label: "Registrado",
+        mensaje: "Registro dentro del horario permitido",
+      };
+
+    case "tardio":
+      return {
+        codigo: "tardio",
+        label: "Registro tardío",
+        mensaje: "Registro realizado fuera del horario permitido",
+      };
+
+    case "registro_invitado":
+      return {
+        codigo: "registro_invitado",
+        label: "Registro invitado",
+        mensaje: `Registrado por invitado: ${
+          asistencia.invitado_nombre || "Invitado"
+        }`,
+      };
+
+    case "no_asistio":
+      return {
+        codigo: "no_asistio",
+        label: "No asistió",
+        mensaje: "No se registró esta clase",
+      };
+
+    default:
+      // Si por alguna razón llega algo raro
+      return {
+        codigo: asistencia.estado || "registrado",
+        label: "Registrado",
+        mensaje: "Registro detectado",
+      };
   }
-
-  const fechaReg = asistencia.fecha;
-  const horaRegStr = asistencia.hora_registro
-    ? asistencia.hora_registro.slice(0, 5)
-    : null;
-  const regMin = horaRegStr ? toMin(horaRegStr) : null;
-
-  // 2.a) Si la base ya guarda el estado calculado, podemos confiar en él
-  // siempre que coincida con la regla de "mismo día" / "otro día".
-  // Pero igual recalculamos por seguridad.
-
-  // Si se registró en otro día (≠ fecha_clase) → siempre tardío
-  if (fechaReg !== fechaClase) {
-    return {
-      codigo: "tardio",
-      label: "Registro tardío",
-      mensaje: "Registro realizado en un día diferente al de la clase",
-    };
-  }
-
-  // Mismo día de la clase:
-  //  - Dentro del bloque horario [ini, fin] → "registrado"
-  //  - Fuera del bloque (ya después del fin, pero mismo día) → "tardio"
-  if (regMin != null && regMin <= finMin) {
-    return {
-      codigo: "registrado",
-      label: "Registrado",
-      mensaje: "Registro dentro del horario de la clase",
-    };
-  }
-
-  return {
-    codigo: "tardio",
-    label: "Registro tardío",
-    mensaje: "Registro realizado fuera del horario de clase, pero el mismo día",
-  };
 }
 
 /* =======================================================
