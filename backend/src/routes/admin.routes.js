@@ -23,11 +23,12 @@ import { pool } from "../services/db.js";
 const r = Router();
 
 function nowMX() {
-  const now = nowMX();
+  const now = new Date();   // ✅ AQUÍ estaba el error
   const offsetMX = -6;
   const utc = now.getTime() + now.getTimezoneOffset() * 60000;
   return new Date(utc + 3600000 * offsetMX);
 }
+
 
 /* =======================================================
    Helpers de tiempo (horas y fechas)
