@@ -24,6 +24,7 @@ export default function Asistencia() {
   const [loading, setLoading] = useState(false);
   const [qrFlash, setQrFlash] = useState(false);
   const [modalFirma, setModalFirma] = useState(false);
+  const [qrSuccess, setQrSuccess] = useState(false);
   /* ===============================
      Cargar docente_id
   =============================== */
@@ -157,8 +158,17 @@ export default function Asistencia() {
             setQrFlash(true);
             setTimeout(() => setQrFlash(false), 600);
             if (navigator.vibrate) navigator.vibrate(100);
-
+            setQrSuccess(true);
+            setTimeout(() => setQrSuccess(false), 2000);
             clearInterval(interval);
+            // limpiar marco verde después de 800ms
+setTimeout(() => {
+  const overlay = overlayRef.current;
+  if (overlay) {
+    const octx = overlay.getContext("2d");
+    octx.clearRect(0, 0, overlay.width, overlay.height);
+  }
+}, 800);
           } catch (e) {
             setMsgType("err");
             setMsg(e.message);
@@ -309,7 +319,11 @@ export default function Asistencia() {
         </button>
 
         <h2 className="center-title">Registro de Asistencia</h2>
-
+{qrSuccess && (
+  <div className="qr-success-check">
+    ✔ QR validado correctamente
+  </div>
+)}
         {msg && (
           <p style={{ color: msgType === "ok" ? "#0a7" : "crimson" }}>
             {msg}
@@ -329,13 +343,15 @@ export default function Asistencia() {
 </div>
 
         <div className="row gap mt">
-          <button
-            className="btn-secondary-ghost small"
-            onClick={tomarFoto}
-            disabled={loading}
-          >
-            Tomar Foto
-          </button>
+            <h4 style={{ marginBottom: "8px" }}>Tomar foto de evidencia del aula</h4>
+
+<button
+  className={`btn-secondary-ghost ${snap ? "btn-success" : ""}`}
+  onClick={tomarFoto}
+  disabled={loading}
+>
+  {snap ? "✔ Foto capturada" : "Capturar foto"}
+</button>
         </div>
 
         {snap && <img src={snap} alt="preview" width={120} />}
