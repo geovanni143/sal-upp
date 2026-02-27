@@ -34,6 +34,21 @@ function nowMX() {
    Helpers de tiempo (horas y fechas)
    ======================================================= */
 
+   function normalizarDiaDB(dia) {
+  const map = { lu: 1, ma: 2, mi: 3, ju: 4, vi: 5 };
+
+  if (typeof dia === "number") return dia;
+
+  if (typeof dia === "string") {
+    const s = dia.trim().toLowerCase();
+    if (map[s]) return map[s];
+    const n = Number(s);
+    if (!Number.isNaN(n)) return n;
+  }
+
+  return 0;
+}
+
 // Convierte "HH:MM" a minutos desde las 00:00
 function toMin(hhmm) {
   if (!hhmm) return 0;
@@ -334,7 +349,7 @@ console.log("DOMINGO CALCULADO:", semana_fin_str);
     //  - dia_num      (1..5)
     //  - fecha_clase  (lunes+offset)
     const clases = rows.map((row) => {
-      const diaNum = Number(row.dia); // 1..5 (ENUM index)
+      const diaNum = normalizarDiaDB(row.dia);
       const fechaClaseDate = addDays(monday, diaNum - 1);
       const fechaClaseStr = toDateStr(fechaClaseDate);
 
