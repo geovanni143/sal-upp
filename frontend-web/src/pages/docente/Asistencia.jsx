@@ -1,23 +1,26 @@
 // Asistencia.jsx
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import jsQR from "jsqr";
 import "./docente.css";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 
 export default function Asistencia() {
+  const navigate = useNavigate();
+
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const overlayRef = useRef(null);
   const firmaRef = useRef(null);
 
   const [snap, setSnap] = useState(null);
-  const [form, setForm] = useState({ docente_id: "", lab_id: "", codigo: "" });
+  const [firmaPreview, setFirmaPreview] = useState(null);
+  const [mostrarFirma, setMostrarFirma] = useState(false);
 
+  const [form, setForm] = useState({ docente_id: "", lab_id: "", codigo: "" });
   const [msg, setMsg] = useState("");
-  const [msgType, setMsgType] = useState("info"); // info | ok | err
-  const [scanning, setScanning] = useState(false);
-  const [found, setFound] = useState(false);
+  const [msgType, setMsgType] = useState("info");
   const [loading, setLoading] = useState(false);
 
   /* ===============================
@@ -33,118 +36,139 @@ export default function Asistencia() {
 
       const uid = localStorage.getItem("user_id");
       if (uid) setForm((p) => ({ ...p, docente_id: String(uid) }));
-    } catch {
-      // no-op
-    }
+    } catch {}
   }, []);
 
   /* ===============================
      Inicializar cámara
   =============================== */
-useEffect(() => {
-  let stream;
+  useEffect(() => {
+    let stream;
 
-  const iniciarCamara = async () => {
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" }
-        },
-        audio: false
-      });
+    const iniciarCamara = async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false
+        });
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+      } catch {
+        setMsgType("err");
+        setMsg("No se pudo acceder a la cámara");
       }
-    } catch (err) {
-      setMsgType("err");
-      setMsg("No se pudo acceder a la cámara");
-    }
+    };
+
+    iniciarCamara();
+
+    return () => {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+    };
+  }, []);
+
+  /* ===============================
+     Sonido QR
+  =============================== */
+  const playBeep = () => {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(800, ctx.currentTime);
+    osc.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.15);
   };
 
-  iniciarCamara();
-
-  return () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-    }
-  };
-}, []);
   /* ===============================
      Parse QR
   =============================== */
   const parseQr = (raw) => {
     try {
       const data = JSON.parse(raw);
-      if (data?.scope !== "sal-upp-horario" || data?.version !== 1) {
+      if (data?.scope !== "sal-upp-horario" || data?.version !== 1)
         throw new Error("QR no reconocido.");
-      }
       if (!data?.codigo) throw new Error("QR inválido.");
       return {
         codigo: String(data.codigo),
         lab_id: data.lab_id ? String(data.lab_id) : "",
       };
     } catch {
-      if (/^\d{4}$/.test(String(raw))) {
+      if (/^\d{4}$/.test(String(raw)))
         return { codigo: String(raw), lab_id: "" };
-      }
       throw new Error("QR inválido.");
     }
   };
 
   /* ===============================
-     Escaneo QR
+     Escaneo automático QR
   =============================== */
-useEffect(() => {
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
+  useEffect(() => {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    let interval;
 
-  let interval;
+    const iniciarEscaneo = () => {
+      interval = setInterval(() => {
+        const video = videoRef.current;
+        if (!video || video.readyState !== 4) return;
 
-  const iniciarEscaneo = () => {
-    interval = setInterval(() => {
-      const video = videoRef.current;
-      if (!video || video.readyState !== 4) return;
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0);
 
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
 
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const code = jsQR(imageData.data, imageData.width, imageData.height);
+        if (code) {
+          try {
+            const parsed = parseQr(code.data);
 
-      if (code) {
-        try {
-          const parsed = parseQr(code.data);
+            setForm(p => ({
+              ...p,
+              codigo: parsed.codigo,
+              lab_id: parsed.lab_id || p.lab_id
+            }));
 
-          setForm((p) => ({
-            ...p,
-            codigo: parsed.codigo,
-            lab_id: parsed.lab_id || p.lab_id,
-          }));
+            setMsgType("ok");
+            setMsg(`QR detectado. Código: ${parsed.codigo}`);
 
-          setMsgType("ok");
-          setMsg(`QR detectado. Código: ${parsed.codigo}`);
+            // 🎯 Marco verde
+            const overlay = overlayRef.current;
+            const octx = overlay.getContext("2d");
+            overlay.width = video.videoWidth;
+            overlay.height = video.videoHeight;
 
-          clearInterval(interval);
-        } catch (e) {
-          setMsgType("err");
-          setMsg(e.message);
+            const loc = code.location;
+            octx.strokeStyle = "lime";
+            octx.lineWidth = 4;
+            octx.beginPath();
+            octx.moveTo(loc.topLeftCorner.x, loc.topLeftCorner.y);
+            octx.lineTo(loc.topRightCorner.x, loc.topRightCorner.y);
+            octx.lineTo(loc.bottomRightCorner.x, loc.bottomRightCorner.y);
+            octx.lineTo(loc.bottomLeftCorner.x, loc.bottomLeftCorner.y);
+            octx.closePath();
+            octx.stroke();
+
+            playBeep();
+            if (navigator.vibrate) navigator.vibrate(100);
+
+            clearInterval(interval);
+          } catch (e) {
+            setMsgType("err");
+            setMsg(e.message);
+          }
         }
-      }
-    }, 400);
-  };
+      }, 400);
+    };
 
-  const video = videoRef.current;
-  if (video) {
-    video.addEventListener("loadeddata", iniciarEscaneo);
-  }
+    const video = videoRef.current;
+    if (video) video.addEventListener("loadeddata", iniciarEscaneo);
 
-  return () => {
-    if (interval) clearInterval(interval);
-  };
-}, []);
+    return () => interval && clearInterval(interval);
+  }, []);
 
   /* ===============================
      Foto
@@ -169,21 +193,18 @@ useEffect(() => {
   };
 
   /* ===============================
-     FIRMA (PC + MÓVIL)
+     Firma
   =============================== */
-  let firmando = false;
+  const [firmando, setFirmando] = useState(false);
 
   const getPosFirma = (e) => {
     const rect = firmaRef.current.getBoundingClientRect();
-    return {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    };
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   };
 
   const iniciarFirma = (e) => {
     e.preventDefault();
-    firmando = true;
+    setFirmando(true);
     const ctx = firmaRef.current.getContext("2d");
     const { x, y } = getPosFirma(e);
     ctx.beginPath();
@@ -202,28 +223,26 @@ useEffect(() => {
     ctx.stroke();
   };
 
-  const terminarFirma = () => {
-    firmando = false;
-  };
+  const terminarFirma = () => setFirmando(false);
 
   const limpiarFirma = () => {
     const c = firmaRef.current;
     const ctx = c.getContext("2d");
     ctx.clearRect(0, 0, c.width, c.height);
+    setFirmaPreview(null);
   };
 
   const firmaVacia = () => {
     const c = firmaRef.current;
     const ctx = c.getContext("2d");
     const img = ctx.getImageData(0, 0, c.width, c.height).data;
-    for (let i = 0; i < img.length; i += 4) {
+    for (let i = 0; i < img.length; i += 4)
       if (img[i + 3] !== 0) return false;
-    }
     return true;
   };
 
   /* ===============================
-     Enviar asistencia
+     Enviar
   =============================== */
   const enviar = async () => {
     try {
@@ -236,6 +255,8 @@ useEffect(() => {
       if (firmaVacia()) throw new Error("Agrega tu firma.");
 
       const firmaDataUrl = firmaRef.current.toDataURL("image/png");
+      setFirmaPreview(firmaDataUrl);
+      setMostrarFirma(false);
 
       const toFile = (dataUrl, name) => {
         const arr = dataUrl.split(",");
@@ -279,77 +300,94 @@ useEffect(() => {
   return (
     <div className="page-shell">
       <div className="menu-card asistencia-card">
+
+        <button className="back-btn" onClick={() => navigate("/docente")}>
+          ←
+        </button>
+
         <h2 className="center-title">Registro de Asistencia</h2>
 
         {msg && (
-          <p style={{ color: msgType === "ok" ? "#0a7" : msgType === "err" ? "crimson" : "#333" }}>
+          <p style={{ color: msgType === "ok" ? "#0a7" : "crimson" }}>
             {msg}
           </p>
         )}
 
-        <div className="camera-section">
+        <div className="camera-wrapper">
           <video
-  ref={videoRef}
-  className="camera-view"
-  autoPlay
-  playsInline
-  muted
-/>
+            ref={videoRef}
+            className="camera-view"
+            autoPlay
+            playsInline
+            muted
+          />
           <canvas ref={overlayRef} className="camera-overlay" />
-
-          <div className="row gap mt">
-
-<button
-  className="btn-secondary-ghost small"
-  onClick={tomarFoto}
-  disabled={loading}
->
-  Tomar Foto
-</button>
-
-          </div>
-
-          {snap && <img src={snap} alt="preview" width={120} />}
-          <canvas ref={canvasRef} hidden />
         </div>
 
-        <div className="firma-section">
-          <h4>Firma del Docente</h4>
-          <canvas
-            ref={firmaRef}
-            width={320}
-            height={180}
-            className="firma-canvas"
-            onPointerDown={iniciarFirma}
-            onPointerMove={dibujarFirma}
-            onPointerUp={terminarFirma}
-            onPointerLeave={terminarFirma}
-            style={{ touchAction: "none" }}
-          />
-<button
-  type="button"
-  className="btn-secondary-ghost small"
-  onClick={limpiarFirma}
-  disabled={loading}
->
-  Limpiar Firma
-</button>
+        <div className="row gap mt">
+          <button
+            className="btn-secondary-ghost small"
+            onClick={tomarFoto}
+            disabled={loading}
+          >
+            Tomar Foto
+          </button>
+        </div>
 
+        {snap && <img src={snap} alt="preview" width={120} />}
+        <canvas ref={canvasRef} hidden />
+
+        {/* FIRMA */}
+        <div className="firma-section">
+          <button
+            className="btn-secondary-ghost small"
+            onClick={() => setMostrarFirma(!mostrarFirma)}
+          >
+            {mostrarFirma ? "Cerrar Firma" : "Agregar Firma"}
+          </button>
+
+          {mostrarFirma && (
+            <>
+              <canvas
+                ref={firmaRef}
+                width={320}
+                height={180}
+                className="firma-canvas"
+                onPointerDown={iniciarFirma}
+                onPointerMove={dibujarFirma}
+                onPointerUp={terminarFirma}
+                onPointerLeave={terminarFirma}
+                style={{ touchAction: "none" }}
+              />
+              <button
+                className="btn-secondary-ghost small"
+                onClick={limpiarFirma}
+              >
+                Limpiar Firma
+              </button>
+            </>
+          )}
+
+          {firmaPreview && (
+            <img src={firmaPreview} alt="Firma" width={150} />
+          )}
         </div>
 
         <input
           placeholder="Código / QR"
           value={form.codigo}
-          onChange={(e) => setForm({ ...form, codigo: e.target.value })}
+          onChange={(e) =>
+            setForm({ ...form, codigo: e.target.value })
+          }
         />
 
- <button
-  className="btn-primary"
-  onClick={enviar}
-  disabled={loading}
->
-  {loading ? "Registrando..." : "Enviar Registro"}
-</button>
+        <button
+          className="btn-primary"
+          onClick={enviar}
+          disabled={loading}
+        >
+          {loading ? "Registrando..." : "Enviar Registro"}
+        </button>
 
       </div>
     </div>
