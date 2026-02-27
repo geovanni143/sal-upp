@@ -265,7 +265,7 @@ if (!ctx) return;
       if (!snap) throw new Error("Toma la foto.");
       if (!firmaPreview) throw new Error("Agrega tu firma.");
 
-      const firmaDataUrl = firmaRef.current.toDataURL("image/png");
+      const firmaDataUrl = firmaPreview;
       setFirmaPreview(firmaDataUrl);
       setMostrarFirma(false);
 
