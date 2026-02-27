@@ -3,14 +3,15 @@
   justify-content: center;
   align-items: flex-start;
   background-color: #cfd2d8;
-  min-height: 100vh;
-  padding: 20px;
+  min-height: 100dvh;   /* 👈 mejor que 100vh en móviles */
+  padding: 16px;
+  overflow-y: auto;     /* 👈 permite scroll */
 }
 
 .menu-card {
   background: #cfd2d8;
   border-radius: 20px;
-  padding: 24px;
+  padding: 20px;
   width: 100%;
   max-width: 420px;
   text-align: center;
@@ -428,4 +429,10 @@
     width: 100%;
   }
 
+}@media (max-width: 600px) {
+  .btn-primary:last-of-type {
+    position: sticky;
+    bottom: 10px;
+    z-index: 10;
+  }
 }
