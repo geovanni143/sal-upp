@@ -159,7 +159,7 @@ export default function Asistencia() {
             setTimeout(() => setQrFlash(false), 600);
             if (navigator.vibrate) navigator.vibrate(100);
             setQrSuccess(true);
-            setTimeout(() => setQrSuccess(false), 2000);
+           // setTimeout(() => setQrSuccess(false), 2000);
             clearInterval(interval);
             // limpiar marco verde después de 800ms
 setTimeout(() => {
