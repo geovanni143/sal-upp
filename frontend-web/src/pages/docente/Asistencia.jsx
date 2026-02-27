@@ -414,17 +414,38 @@ if (!ctx) return;
       />
 
       <div className="modal-buttons">
-        <button
-          onClick={() => {
-            if (!firmaVacia()) {
-              const firmaData = firmaRef.current.toDataURL("image/png");
-              setFirmaPreview(firmaData);
-            }
-            setModalFirma(false);
-          }}
-        >
-          Guardar
-        </button>
+<button
+  onClick={() => {
+    if (!firmaRef.current) return;
+
+    const canvas = firmaRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // verificar que no esté vacío
+    const img = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    let tieneFirma = false;
+
+    for (let i = 0; i < img.length; i += 4) {
+      if (img[i + 3] !== 0) {
+        tieneFirma = true;
+        break;
+      }
+    }
+
+    if (!tieneFirma) {
+      setMsgType("err");
+      setMsg("La firma está vacía.");
+      return;
+    }
+
+    const firmaData = canvas.toDataURL("image/png");
+    setFirmaPreview(firmaData);
+    setModalFirma(false);
+  }}
+>
+  Guardar
+</button>
 
         <button onClick={limpiarFirma}>
           Limpiar
