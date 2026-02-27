@@ -138,8 +138,10 @@ export default function Asistencia() {
             setMsg(`QR detectado. Código: ${parsed.codigo}`);
 
             // 🎯 Marco verde
-            const overlay = overlayRef.current;
-            const octx = overlay.getContext("2d");
+const overlay = overlayRef.current;
+if (!overlay) return;
+const octx = overlay.getContext("2d");
+if (!octx) return;
             overlay.width = video.videoWidth;
             overlay.height = video.videoHeight;
 
@@ -218,7 +220,9 @@ setTimeout(() => {
   const iniciarFirma = (e) => {
     e.preventDefault();
     setFirmando(true);
-    const ctx = firmaRef.current.getContext("2d");
+    if (!firmaRef.current) return;
+const ctx = firmaRef.current.getContext("2d");
+if (!ctx) return;
     const { x, y } = getPosFirma(e);
     ctx.beginPath();
     ctx.moveTo(x, y);
@@ -227,7 +231,9 @@ setTimeout(() => {
   const dibujarFirma = (e) => {
     if (!firmando) return;
     e.preventDefault();
-    const ctx = firmaRef.current.getContext("2d");
+    if (!firmaRef.current) return;
+const ctx = firmaRef.current.getContext("2d");
+if (!ctx) return;
     const { x, y } = getPosFirma(e);
     ctx.lineWidth = 2;
     ctx.lineCap = "round";
@@ -245,15 +251,20 @@ setTimeout(() => {
     setFirmaPreview(null);
   };
 
-  const firmaVacia = () => {
-    const c = firmaRef.current;
-    const ctx = c.getContext("2d");
-    const img = ctx.getImageData(0, 0, c.width, c.height).data;
-    for (let i = 0; i < img.length; i += 4)
-      if (img[i + 3] !== 0) return false;
-    return true;
-  };
+const firmaVacia = () => {
+  if (!firmaRef.current) return true;
 
+  const c = firmaRef.current;
+  const ctx = c.getContext("2d");
+  if (!ctx) return true;
+
+  const img = ctx.getImageData(0, 0, c.width, c.height).data;
+
+  for (let i = 0; i < img.length; i += 4) {
+    if (img[i + 3] !== 0) return false;
+  }
+  return true;
+};
   /* ===============================
      Enviar
   =============================== */
