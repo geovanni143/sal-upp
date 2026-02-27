@@ -267,7 +267,7 @@ if (!ctx) return;
 
       const firmaDataUrl = firmaPreview;
       setFirmaPreview(firmaDataUrl);
-      setMostrarFirma(false);
+      setModalFirma(false);
 
       const toFile = (dataUrl, name) => {
         const arr = dataUrl.split(",");
