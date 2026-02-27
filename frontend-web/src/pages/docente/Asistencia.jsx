@@ -251,20 +251,7 @@ if (!ctx) return;
     setFirmaPreview(null);
   };
 
-const firmaVacia = () => {
-  if (!firmaRef.current) return true;
 
-  const c = firmaRef.current;
-  const ctx = c.getContext("2d");
-  if (!ctx) return true;
-
-  const img = ctx.getImageData(0, 0, c.width, c.height).data;
-
-  for (let i = 0; i < img.length; i += 4) {
-    if (img[i + 3] !== 0) return false;
-  }
-  return true;
-};
   /* ===============================
      Enviar
   =============================== */
@@ -276,7 +263,7 @@ const firmaVacia = () => {
       if (!form.docente_id) throw new Error("No se detectó el docente.");
       if (!form.codigo) throw new Error("Escanea el QR.");
       if (!snap) throw new Error("Toma la foto.");
-      if (firmaVacia()) throw new Error("Agrega tu firma.");
+      if (!firmaPreview) throw new Error("Agrega tu firma.");
 
       const firmaDataUrl = firmaRef.current.toDataURL("image/png");
       setFirmaPreview(firmaDataUrl);
