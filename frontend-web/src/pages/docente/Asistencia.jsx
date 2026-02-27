@@ -41,27 +41,36 @@ export default function Asistencia() {
   /* ===============================
      Inicializar cámara
   =============================== */
-  useEffect(() => {
-    navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: "environment" } })
-      .then((stream) => {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      })
-      .catch(() => {
-        setMsgType("err");
-        setMsg("No se pudo acceder a la cámara");
+useEffect(() => {
+  let stream;
+
+  const iniciarCamara = async () => {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" }
+        },
+        audio: false
       });
 
-    return () => {
-      try {
-        const v = videoRef.current;
-        const s = v?.srcObject;
-        if (s?.getTracks) s.getTracks().forEach((t) => t.stop());
-      } catch {}
-    };
-  }, []);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+    } catch (err) {
+      setMsgType("err");
+      setMsg("No se pudo acceder a la cámara");
+    }
+  };
 
+  iniciarCamara();
+
+  return () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+    }
+  };
+}, []);
   /* ===============================
      Parse QR
   =============================== */
@@ -87,16 +96,14 @@ export default function Asistencia() {
   /* ===============================
      Escaneo QR
   =============================== */
-  useEffect(() => {
-    if (!scanning) return;
+useEffect(() => {
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
 
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
+  let interval;
 
-    const overlay = overlayRef.current;
-    const octx = overlay.getContext("2d");
-
-    const interval = setInterval(() => {
+  const iniciarEscaneo = () => {
+    interval = setInterval(() => {
       const video = videoRef.current;
       if (!video || video.readyState !== 4) return;
 
@@ -106,8 +113,6 @@ export default function Asistencia() {
 
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const code = jsQR(imageData.data, imageData.width, imageData.height);
-
-      octx.clearRect(0, 0, overlay.width, overlay.height);
 
       if (code) {
         try {
@@ -121,10 +126,7 @@ export default function Asistencia() {
 
           setMsgType("ok");
           setMsg(`QR detectado. Código: ${parsed.codigo}`);
-          setFound(true);
-          setScanning(false);
 
-          setTimeout(() => setFound(false), 2000);
           clearInterval(interval);
         } catch (e) {
           setMsgType("err");
@@ -132,9 +134,17 @@ export default function Asistencia() {
         }
       }
     }, 400);
+  };
 
-    return () => clearInterval(interval);
-  }, [scanning]);
+  const video = videoRef.current;
+  if (video) {
+    video.addEventListener("loadeddata", iniciarEscaneo);
+  }
+
+  return () => {
+    if (interval) clearInterval(interval);
+  };
+}, []);
 
   /* ===============================
      Foto
@@ -278,17 +288,16 @@ export default function Asistencia() {
         )}
 
         <div className="camera-section">
-          <video ref={videoRef} className="camera-view" />
+          <video
+  ref={videoRef}
+  className="camera-view"
+  autoPlay
+  playsInline
+  muted
+/>
           <canvas ref={overlayRef} className="camera-overlay" />
 
           <div className="row gap mt">
-<button
-  className="btn-primary small"
-  onClick={() => setScanning((p) => !p)}
-  disabled={loading}
->
-  {scanning ? "Escaneando..." : "Escanear QR"}
-</button>
 
 <button
   className="btn-secondary-ghost small"
