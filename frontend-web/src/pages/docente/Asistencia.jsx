@@ -16,13 +16,14 @@ export default function Asistencia() {
 
   const [snap, setSnap] = useState(null);
   const [firmaPreview, setFirmaPreview] = useState(null);
-  const [mostrarFirma, setMostrarFirma] = useState(false);
+  //const [mostrarFirma, setMostrarFirma] = useState(false);
 
   const [form, setForm] = useState({ docente_id: "", lab_id: "", codigo: "" });
   const [msg, setMsg] = useState("");
   const [msgType, setMsgType] = useState("info");
   const [loading, setLoading] = useState(false);
-
+  const [qrFlash, setQrFlash] = useState(false);
+  const [modalFirma, setModalFirma] = useState(false);
   /* ===============================
      Cargar docente_id
   =============================== */
@@ -153,6 +154,8 @@ export default function Asistencia() {
             octx.stroke();
 
             playBeep();
+            setQrFlash(true);
+            setTimeout(() => setQrFlash(false), 600);
             if (navigator.vibrate) navigator.vibrate(100);
 
             clearInterval(interval);
@@ -313,16 +316,17 @@ export default function Asistencia() {
           </p>
         )}
 
-        <div className="camera-wrapper">
-          <video
-            ref={videoRef}
-            className="camera-view"
-            autoPlay
-            playsInline
-            muted
-          />
-          <canvas ref={overlayRef} className="camera-overlay" />
-        </div>
+<div className="camera-wrapper">
+  <video
+    ref={videoRef}
+    className="camera-view"
+    autoPlay
+    playsInline
+    muted
+  />
+  <canvas ref={overlayRef} className="camera-overlay" />
+  {qrFlash && <div className="qr-flash" />}
+</div>
 
         <div className="row gap mt">
           <button
@@ -338,41 +342,30 @@ export default function Asistencia() {
         <canvas ref={canvasRef} hidden />
 
         {/* FIRMA */}
-        <div className="firma-section">
-          <button
-            className="btn-secondary-ghost small"
-            onClick={() => setMostrarFirma(!mostrarFirma)}
-          >
-            {mostrarFirma ? "Cerrar Firma" : "Agregar Firma"}
-          </button>
+<div className="firma-section">
 
-          {mostrarFirma && (
-            <>
-              <canvas
-                ref={firmaRef}
-                width={320}
-                height={180}
-                className="firma-canvas"
-                onPointerDown={iniciarFirma}
-                onPointerMove={dibujarFirma}
-                onPointerUp={terminarFirma}
-                onPointerLeave={terminarFirma}
-                style={{ touchAction: "none" }}
-              />
-              <button
-                className="btn-secondary-ghost small"
-                onClick={limpiarFirma}
-              >
-                Limpiar Firma
-              </button>
-            </>
-          )}
+  <button
+    className="btn-secondary-ghost small"
+    onClick={() => setModalFirma(true)}
+  >
+    {firmaPreview ? "Editar Firma" : "Agregar Firma"}
+  </button>
 
-          {firmaPreview && (
-            <img src={firmaPreview} alt="Firma" width={150} />
-          )}
-        </div>
+  {firmaPreview && (
+    <img
+      src={firmaPreview}
+      alt="Firma"
+      width={160}
+      style={{
+        marginTop: "10px",
+        borderRadius: "8px",
+        background: "#fff",
+        padding: "6px"
+      }}
+    />
+  )}
 
+</div>
         <input
           placeholder="Código / QR"
           value={form.codigo}
@@ -388,7 +381,45 @@ export default function Asistencia() {
         >
           {loading ? "Registrando..." : "Enviar Registro"}
         </button>
+{modalFirma && (
+  <div className="modal-overlay">
+    <div className="modal-box">
 
+      <h3>Firma del Docente</h3>
+
+      <canvas
+        ref={firmaRef}
+        width={320}
+        height={180}
+        className="firma-canvas"
+        onPointerDown={iniciarFirma}
+        onPointerMove={dibujarFirma}
+        onPointerUp={terminarFirma}
+        onPointerLeave={terminarFirma}
+        style={{ touchAction: "none" }}
+      />
+
+      <div className="modal-buttons">
+        <button
+          onClick={() => {
+            if (!firmaVacia()) {
+              const firmaData = firmaRef.current.toDataURL("image/png");
+              setFirmaPreview(firmaData);
+            }
+            setModalFirma(false);
+          }}
+        >
+          Guardar
+        </button>
+
+        <button onClick={limpiarFirma}>
+          Limpiar
+        </button>
+      </div>
+
+    </div>
+  </div>
+)}
       </div>
     </div>
   );
