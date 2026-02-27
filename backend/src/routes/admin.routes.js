@@ -486,6 +486,10 @@ console.log("ASISTENCIAS RAW:", asisRows);
 
       return { estado_codigo, estado_label, texto };
     }
+console.log("CLASES CALCULADAS:", clases.map(c => ({
+  id: c.id,
+  fecha_clase: c.fecha_clase
+})));
 
     // -------------------------------
     // 6) Unir TODO: clase + asistencia
