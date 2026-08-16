@@ -123,7 +123,7 @@ app.use((err, _req, res, _next) => {
 // ===============================
 // SERVER
 // ===============================
-const PORT = Number(process.env.PORT || 10000);
+const PORT = Number(process.env.PORT || 4000);
 
 app.listen(PORT, () => {
   console.log("----------------------------------------");
@@ -133,3 +133,4 @@ app.listen(PORT, () => {
   console.log(" Archivos estáticos en        :", uploadsPath);
   console.log("----------------------------------------");
 });
+

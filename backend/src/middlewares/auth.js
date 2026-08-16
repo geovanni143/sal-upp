@@ -28,7 +28,7 @@ export function requireAuth(req, res, next) {
       return res.status(401).json({ error: "No autorizado: falta token" });
     }
 
-    const secret = process.env.JWT_SECRET || process.env.SECRET || "dev_secret";
+    const secret = process.env.JWT_SECRET;
     const payload = jwt.verify(token, secret);
 
     // Normaliza el usuario en req.user
@@ -85,3 +85,4 @@ export function requireRole(...roles) {
 export const auth = requireAuth;
 export const authorize = requireRole;
 export const requireRoles = requireRole;
+
